@@ -1,0 +1,429 @@
+name: Deploy to Hostinger VPS
+
+on:
+     push:
+          branches: [main, master]
+     workflow_dispatch:
+
+env:
+     NODE_VERSION: '20.x'
+     PROJECT_NAME: ${{ github.event.repository.name }}
+
+jobs:
+     build:
+          name: Build Application
+          runs-on: ubuntu-latest
+
+          steps:
+               - name: Checkout Repository
+                 uses: actions/checkout@v4
+
+               - name: Setup Node.js ${{ env.NODE_VERSION }}
+                 uses: actions/setup-node@v4
+                 with:
+                      node-version: ${{ env.NODE_VERSION }}
+                      cache: 'npm'
+
+               - name: Install Dependencies
+                 run: npm ci
+
+               - name: Run Tests (Optional)
+                 run: npm test --if-present
+                 continue-on-error: true
+
+               - name: Build Application
+                 run: npm run build
+
+               - name: Create Deployment Package
+                 run: |
+                      mkdir -p deploy
+
+                      # Copy built files
+                      [ -d "dist" ] && cp -r dist deploy/ || echo "No dist folder"
+                      [ -d "build" ] && cp -r build deploy/ || echo "No build folder"
+                      [ -d "src" ] && cp -r src deploy/ || echo "No src folder"
+                      [ -d "public" ] && cp -r public deploy/ || echo "No public folder"
+
+                      # Copy configuration files
+                      cp package*.json deploy/
+
+                      # Copy Docker compose if exists
+                      [ -f docker-compose.yml ] && cp docker-compose.yml deploy/ || true
+                      [ -f docker-compose.yaml ] && cp docker-compose.yaml deploy/ || true
+
+                      # Copy PM2 config if exists
+                      [ -f ecosystem.config.js ] && cp ecosystem.config.js deploy/ || true
+                      [ -f ecosystem.config.cjs ] && cp ecosystem.config.cjs deploy/ || true
+
+                      # Copy other necessary files
+                      [ -f .env.example ] && cp .env.example deploy/ || true
+                      [ -f .nvmrc ] && cp .nvmrc deploy/ || true
+                      [ -f tsconfig.json ] && cp tsconfig.json deploy/ || true
+
+                      # Create compressed archive
+                      tar -czf deploy.tar.gz -C deploy .
+
+                      echo "✅ Deployment package created successfully"
+                      ls -lh deploy.tar.gz
+
+               - name: Upload Deployment Artifact
+                 uses: actions/upload-artifact@v4
+                 with:
+                      name: deployment-package-${{ env.PROJECT_NAME }}
+                      path: deploy.tar.gz
+                      retention-days: 1
+
+     deploy:
+          name: Deploy to VPS
+          needs: build
+          runs-on: ubuntu-latest
+
+          steps:
+               - name: Download Deployment Artifact
+                 uses: actions/download-artifact@v4
+                 with:
+                      name: deployment-package-${{ env.PROJECT_NAME }}
+
+               - name: Deploy to VPS
+                 env:
+                      VPS_HOST: ${{ secrets.VPS_HOST }}
+                      VPS_USERNAME: ${{ secrets.VPS_USERNAME }}
+                      VPS_SSH_KEY: ${{ secrets.VPS_SSH_KEY }}
+                      VPS_PORT: ${{ secrets.VPS_PORT || 22 }}
+                      PROJECT_NAME: ${{ env.PROJECT_NAME }}
+                      APP_PORT: ${{ secrets.APP_PORT || 8000 }}
+                      REDIS_PORT: ${{ secrets.REDIS_PORT || 6379 }}
+                 run: |
+                      # Setup SSH key
+                      echo "$VPS_SSH_KEY" > private_key.pem
+                      chmod 600 private_key.pem
+
+                      # Add VPS to known hosts
+                      ssh-keyscan -p ${VPS_PORT} -H ${VPS_HOST} >> ~/.ssh/known_hosts 2>/dev/null || true
+
+                      echo "📦 Uploading ${PROJECT_NAME} to VPS..."
+                      scp -i private_key.pem -P ${VPS_PORT} -o StrictHostKeyChecking=no \
+                        deploy.tar.gz ${VPS_USERNAME}@${VPS_HOST}:/tmp/deploy-${PROJECT_NAME}.tar.gz
+
+                      echo "🚀 Deploying ${PROJECT_NAME} with Redis..."
+                      ssh -i private_key.pem -P ${VPS_PORT} -o StrictHostKeyChecking=no \
+                        ${VPS_USERNAME}@${VPS_HOST} << ENDSSH
+                        
+                        set -e
+                        
+                        # Project variables
+                        PROJECT_NAME="${PROJECT_NAME}"
+                        APP_DIR="\$HOME/projects/\${PROJECT_NAME}"
+                        APP_PORT="${APP_PORT}"
+                        REDIS_PORT="${REDIS_PORT}"
+                        REDIS_CONTAINER="\${PROJECT_NAME}-redis"
+                        
+                        echo "=========================================="
+                        echo "🚀 Deploying: \${PROJECT_NAME}"
+                        echo "📁 Directory: \${APP_DIR}"
+                        echo "🔌 App Port: \${APP_PORT}"
+                        echo "🔴 Redis Port: \${REDIS_PORT}"
+                        echo "=========================================="
+                        
+                        # Create project directory
+                        mkdir -p "\$APP_DIR"
+                        mkdir -p "\$HOME/projects"
+                        cd "\$APP_DIR"
+                        
+                        # Create backup
+                        if [ -d "dist" ] || [ -d "build" ]; then
+                          echo "💾 Creating backup..."
+                          timestamp=\$(date +%Y%m%d_%H%M%S)
+                          mkdir -p backups
+                          tar -czf backups/backup_\${timestamp}.tar.gz \
+                            dist build package.json .env ecosystem.config.* docker-compose.* 2>/dev/null || true
+                          ls -t backups/backup_*.tar.gz 2>/dev/null | tail -n +6 | xargs -r rm
+                          echo "✅ Backup saved"
+                        fi
+                        
+                        # Extract deployment
+                        echo "📦 Extracting files..."
+                        tar --overwrite -xzf /tmp/deploy-\${PROJECT_NAME}.tar.gz -C "\$APP_DIR"
+                        rm /tmp/deploy-\${PROJECT_NAME}.tar.gz
+                        
+                        # Set ownership
+                        chown -R \$USER:\$USER "\$APP_DIR"
+                        
+                        # Setup Redis with Docker
+                        echo "🔴 Setting up Redis container..."
+                        
+                        # Stop existing Redis container if running
+                        if docker ps -a --format '{{.Names}}' | grep -q "^\${REDIS_CONTAINER}\$"; then
+                          echo "Stopping existing Redis container..."
+                          docker stop \${REDIS_CONTAINER} 2>/dev/null || true
+                          docker rm \${REDIS_CONTAINER} 2>/dev/null || true
+                        fi
+                        
+                        # Create docker-compose.yml if not exists
+                        if [ ! -f docker-compose.yml ] && [ ! -f docker-compose.yaml ]; then
+                          echo "📝 Creating docker-compose.yml for Redis..."
+                          echo 'version: "3.8"' > docker-compose.yml
+                          echo '' >> docker-compose.yml
+                          echo 'services:' >> docker-compose.yml
+                          echo '  redis:' >> docker-compose.yml
+                          echo '    image: redis:7-alpine' >> docker-compose.yml
+                          echo '    container_name: \${PROJECT_NAME}-redis' >> docker-compose.yml
+                          echo '    restart: unless-stopped' >> docker-compose.yml
+                          echo '    ports:' >> docker-compose.yml
+                          echo '      - "'${REDIS_PORT}':6379"' >> docker-compose.yml
+                          echo '    volumes:' >> docker-compose.yml
+                          echo '      - redis-data:/data' >> docker-compose.yml
+                          echo '    command: redis-server --appendonly yes --requirepass \${REDIS_PASSWORD:-}' >> docker-compose.yml
+                          echo '    healthcheck:' >> docker-compose.yml
+                          echo '      test: ["CMD", "redis-cli", "ping"]' >> docker-compose.yml
+                          echo '      interval: 10s' >> docker-compose.yml
+                          echo '      timeout: 5s' >> docker-compose.yml
+                          echo '      retries: 5' >> docker-compose.yml
+                          echo '' >> docker-compose.yml
+                          echo 'volumes:' >> docker-compose.yml
+                          echo '  redis-data:' >> docker-compose.yml
+                          echo '    driver: local' >> docker-compose.yml
+                        fi
+                        
+                        # Create or update .env
+                        if [ ! -f .env ]; then
+                          echo "⚙️ Creating .env file..."
+                          if [ -f .env.example ]; then
+                            cp .env.example .env
+                          else
+                            echo 'NODE_ENV=production' > .env
+                            echo 'PORT=\${APP_PORT}' >> .env
+                            echo 'REDIS_HOST=localhost' >> .env
+                            echo 'REDIS_PORT=\${REDIS_PORT}' >> .env
+                            echo 'REDIS_PASSWORD=' >> .env
+                          fi
+                          fi
+                        fi
+                        
+                        # Update .env with correct ports
+                        sed -i "s/^PORT=.*/PORT=\${APP_PORT}/" .env
+                        sed -i "s/^REDIS_PORT=.*/REDIS_PORT=\${REDIS_PORT}/" .env || echo "REDIS_PORT=\${REDIS_PORT}" >> .env
+                        sed -i "s/^REDIS_HOST=.*/REDIS_HOST=localhost/" .env || echo "REDIS_HOST=localhost" >> .env
+                        
+                        # Start Redis container
+                        echo "🐳 Starting Redis container..."
+                        export PROJECT_NAME="\${PROJECT_NAME}"
+                        export REDIS_PORT="\${REDIS_PORT}"
+                        docker-compose up -d redis
+                        
+                        # Wait for Redis to be ready
+                        echo "⏳ Waiting for Redis to be ready..."
+                        for i in {1..30}; do
+                          if docker exec \${REDIS_CONTAINER} redis-cli ping > /dev/null 2>&1; then
+                            echo "✅ Redis is ready!"
+                            break
+                          fi
+                          echo "Waiting... (\$i/30)"
+                          sleep 2
+                        done
+                        
+                        # Install dependencies
+                        echo "📥 Installing dependencies..."
+                        export NODE_ENV=production
+                        npm ci --omit=dev
+                        
+                        # Create directories
+                        mkdir -p logs uploads tmp
+                        chmod -R 755 "\$APP_DIR"
+                        
+                        # Check PM2
+                        if ! command -v pm2 &> /dev/null; then
+                          echo "📦 Installing PM2..."
+                          npm install -g pm2
+                        fi
+                        
+                        # Create PM2 ecosystem config if not exists
+                        if [ ! -f ecosystem.config.js ] && [ ! -f ecosystem.config.cjs ]; then
+                          echo "📝 Creating PM2 config..."
+                          echo 'module.exports = {' > ecosystem.config.js
+                          echo '  apps: [{' >> ecosystem.config.js
+                          echo '    name: process.env.PROJECT_NAME || "app",' >> ecosystem.config.js
+                          echo '    script: "./dist/index.js",' >> ecosystem.config.js
+                          echo '    instances: 1,' >> ecosystem.config.js
+                          echo '    exec_mode: "cluster",' >> ecosystem.config.js
+                          echo '    autorestart: true,' >> ecosystem.config.js
+                          echo '    watch: false,' >> ecosystem.config.js
+                          echo '    max_memory_restart: "1G",' >> ecosystem.config.js
+                          echo '    env: {' >> ecosystem.config.js
+                          echo '      NODE_ENV: "production"' >> ecosystem.config.js
+                          echo '    },' >> ecosystem.config.js
+                          echo '    error_file: "./logs/error.log",' >> ecosystem.config.js
+                          echo '    out_file: "./logs/out.log",' >> ecosystem.config.js
+                          echo '    log_date_format: "YYYY-MM-DD HH:mm:ss Z",' >> ecosystem.config.js
+                          echo '    merge_logs: true' >> ecosystem.config.js
+                          echo '  }]' >> ecosystem.config.js
+                          echo '};' >> ecosystem.config.js
+                        fi
+                        
+                        # Deploy with PM2
+                        export PROJECT_NAME="\${PROJECT_NAME}"
+                        
+                        if pm2 describe "\${PROJECT_NAME}" > /dev/null 2>&1; then
+                          echo "🔄 Reloading \${PROJECT_NAME}..."
+                          pm2 reload ecosystem.config.* --update-env
+                        else
+                          echo "🚀 Starting \${PROJECT_NAME}..."
+                          pm2 start ecosystem.config.* --name "\${PROJECT_NAME}"
+                        fi
+                        
+                        pm2 save --force
+                        
+                        # Show status
+                        echo ""
+                        echo "✅ Deployment completed!"
+                        echo "=========================================="
+                        echo "📊 PM2 Status:"
+                        pm2 list
+                        echo ""
+                        echo "🐳 Docker Status:"
+                        docker ps --filter "name=\${REDIS_CONTAINER}"
+                        echo ""
+                        echo "🔴 Redis Status:"
+                        docker exec \${REDIS_CONTAINER} redis-cli ping 2>/dev/null && echo "Redis: CONNECTED" || echo "Redis: DISCONNECTED"
+                        echo "=========================================="
+                        
+                      ENDSSH
+
+                      rm -f private_key.pem
+                      echo "🎉 \${PROJECT_NAME} deployed successfully!"
+
+               - name: Health Check
+                 env:
+                      VPS_HOST: ${{ secrets.VPS_HOST }}
+                      APP_PORT: ${{ secrets.APP_PORT || 8000 }}
+                      HEALTH_CHECK_URL: ${{ secrets.HEALTH_CHECK_URL }}
+                 run: |
+                      if [ -n "$HEALTH_CHECK_URL" ]; then
+                        CHECK_URL="$HEALTH_CHECK_URL"
+                      else
+                        CHECK_URL="http://${VPS_HOST}:${APP_PORT}"
+                      fi
+
+                      echo "⏳ Waiting for application..."
+                      sleep 20
+
+                      echo "🏥 Health check: $CHECK_URL"
+
+                      for i in {1..5}; do
+                        echo "Attempt $i/5..."
+                        
+                        response=$(curl -s -o /dev/null -w "%{http_code}" $CHECK_URL 2>/dev/null || echo "000")
+                        
+                        if [ "$response" = "200" ] || [ "$response" = "301" ] || [ "$response" = "302" ]; then
+                          echo "✅ Health check passed! ($response)"
+                          echo "🌐 $CHECK_URL"
+                          exit 0
+                        fi
+                        
+                        echo "⚠️  Response: $response"
+                        [ $i -lt 5 ] && sleep 10
+                      done
+
+                      echo "❌ Health check failed"
+                      echo "🔍 Debug commands:"
+                      echo "  ssh ${{ secrets.VPS_USERNAME }}@${{ secrets.VPS_HOST }} 'pm2 logs ${{ env.PROJECT_NAME }}'"
+                      echo "  ssh ${{ secrets.VPS_USERNAME }}@${{ secrets.VPS_HOST }} 'docker logs ${{ env.PROJECT_NAME }}-redis'"
+                      exit 1
+
+               - name: Rollback on Failure
+                 if: failure()
+                 env:
+                      VPS_HOST: ${{ secrets.VPS_HOST }}
+                      VPS_USERNAME: ${{ secrets.VPS_USERNAME }}
+                      VPS_SSH_KEY: ${{ secrets.VPS_SSH_KEY }}
+                      VPS_PORT: ${{ secrets.VPS_PORT || 22 }}
+                      PROJECT_NAME: ${{ env.PROJECT_NAME }}
+                 run: |
+                      echo "🔄 Rolling back $PROJECT_NAME..."
+
+                      echo "$VPS_SSH_KEY" > private_key.pem
+                      chmod 600 private_key.pem
+
+                      ssh -i private_key.pem -P ${VPS_PORT} -o StrictHostKeyChecking=no \
+                        ${VPS_USERNAME}@${VPS_HOST} << ENDSSH
+                        
+                        PROJECT_NAME="${PROJECT_NAME}"
+                        APP_DIR="\$HOME/projects/\${PROJECT_NAME}"
+                        
+                        cd "\$APP_DIR"
+                        
+                        latest_backup=\$(ls -t backups/backup_*.tar.gz 2>/dev/null | head -1)
+                        
+                        if [ -n "\$latest_backup" ]; then
+                          echo "📦 Restoring: \$latest_backup"
+                          tar -xzf "\$latest_backup" -C "\$APP_DIR"
+                          npm ci --omit=dev
+                          
+                          # Restart Redis if needed
+                          docker-compose up -d redis
+                          sleep 5
+                          
+                          # Reload app
+                          pm2 reload ecosystem.config.* --update-env
+                          echo "✅ Rollback completed"
+                          pm2 list
+                          docker ps
+                        else
+                          echo "⚠️  No backup found"
+                        fi
+                        
+                      ENDSSH
+
+                      rm -f private_key.pem
+
+     summary:
+          name: Deployment Summary
+          needs: [build, deploy]
+          runs-on: ubuntu-latest
+          if: always()
+
+          steps:
+               - name: Show Results
+                 env:
+                      PROJECT_NAME: ${{ env.PROJECT_NAME }}
+                 run: |
+                      echo "=========================================="
+                      echo "📦 Project: ${PROJECT_NAME}"
+                      echo "=========================================="
+
+                      if [ "${{ needs.deploy.result }}" = "success" ]; then
+                        echo "✅ Status: DEPLOYED"
+                        echo "👤 User: ${{ secrets.VPS_USERNAME }}"
+                        echo "📁 Path: ~/projects/${PROJECT_NAME}"
+                        echo "🔌 App Port: ${{ secrets.APP_PORT || 8000 }}"
+                        echo "🔴 Redis Port: ${{ secrets.REDIS_PORT || 6379 }}"
+                        echo ""
+                        echo "📝 Quick commands:"
+                        echo "  # SSH login"
+                        echo "  ssh ${{ secrets.VPS_USERNAME }}@${{ secrets.VPS_HOST }}"
+                        echo ""
+                        echo "  # App logs"
+                        echo "  pm2 logs ${PROJECT_NAME}"
+                        echo ""
+                        echo "  # Redis logs"
+                        echo "  docker logs ${PROJECT_NAME}-redis"
+                        echo ""
+                        echo "  # Redis CLI"
+                        echo "  docker exec -it ${PROJECT_NAME}-redis redis-cli"
+                        echo ""
+                        echo "  # Restart app"
+                        echo "  pm2 restart ${PROJECT_NAME}"
+                        echo ""
+                        echo "  # Restart Redis"
+                        echo "  docker restart ${PROJECT_NAME}-redis"
+                      else
+                        echo "❌ Status: FAILED"
+                        echo ""
+                        echo "🔍 Debug commands:"
+                        echo "  ssh ${{ secrets.VPS_USERNAME }}@${{ secrets.VPS_HOST }}"
+                        echo "  pm2 logs ${PROJECT_NAME} --err"
+                        echo "  docker logs ${PROJECT_NAME}-redis"
+                        echo "  cd ~/projects/${PROJECT_NAME} && npm start"
+                      fi
+
+                      echo "=========================================="

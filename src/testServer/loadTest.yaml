@@ -1,0 +1,14 @@
+config:
+     target: 'http://10.10.7.37:7005'
+     phases:
+          - duration: 60 # running 1 minute
+            arrivalRate: 5000 # new request per 20 seconds
+     defaults:
+          headers:
+               Authorization:
+                    'Bearer
+                    eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjY4NmNiZTBlNTYzOTMzZDcwNDg0YmRkOCIsInJvbGUiOiJTVVBFUl9BRE1JTiIsImVtYWlsIjoic3VwZXJhZG1pbkBnbWFpbC5jb20iLCJpYXQiOjE3NTI0NzEzMzksImV4cCI6MTc1NTA2MzMzOX0.WyXAVlIpCcPpBdV_3BHjC1-o8uuv61zVziP7dG9z81Y'
+scenarios:
+     - flow:
+            - get:
+                   url: '/api/v1/admin/auction/managements/get-all-auctions'

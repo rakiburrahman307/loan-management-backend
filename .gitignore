@@ -1,0 +1,10 @@
+node_modules
+dist
+coverage
+uploads
+winston
+reports
+.env
+.env*
+ecosystem.config.js
+

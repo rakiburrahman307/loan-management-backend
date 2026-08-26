@@ -1,0 +1,330 @@
+name: Deploy to VPS (Self-Hosted Runner)
+
+on:
+     push:
+          branches: [main, master]
+     pull_request:
+          branches: [main, master]
+     workflow_dispatch:
+
+env:
+     NODE_VERSION: '20.x'
+     PROJECT_NAME: ${{ github.event.repository.name }}
+     APP_PORT: ${{ secrets.APP_PORT || '8000' }}
+     REDIS_PORT: ${{ secrets.REDIS_PORT || '6379' }}
+
+jobs:
+     deploy:
+          name: Build & Deploy
+          runs-on: self-hosted
+
+          steps:
+               - name: Checkout Code
+                 uses: actions/checkout@v4
+
+               - name: Use Node.js ${{ env.NODE_VERSION }}
+                 uses: actions/setup-node@v4
+                 with:
+                      node-version: ${{ env.NODE_VERSION }}
+                      cache: npm
+
+               - name: Check Node and npm versions
+                 run: |
+                      node -v
+                      npm -v
+
+               - name: Setup Project Directory
+                 run: |
+                      PROJECT_DIR="$HOME/projects/${{ env.PROJECT_NAME }}"
+                      echo "PROJECT_DIR=$PROJECT_DIR" >> $GITHUB_ENV
+                      mkdir -p "$PROJECT_DIR"
+                      mkdir -p "$PROJECT_DIR/uploads"
+                      mkdir -p "$PROJECT_DIR/logs"
+                      mkdir -p "$PROJECT_DIR/backups"
+                      echo "✅ Project directory setup complete: $PROJECT_DIR"
+
+               - name: Create Backup
+                 run: |
+                      if [ -d "$PROJECT_DIR/dist" ] || [ -d "$PROJECT_DIR/build" ]; then
+                        timestamp=$(date +%Y%m%d_%H%M%S)
+                        echo "💾 Creating backup..."
+                        tar -czf "$PROJECT_DIR/backups/backup_${timestamp}.tar.gz" \
+                          -C "$PROJECT_DIR" \
+                          dist build package.json .env ecosystem.config.* docker-compose.* 2>/dev/null || true
+                        # Keep only last 5 backups
+                        ls -t "$PROJECT_DIR/backups"/backup_*.tar.gz 2>/dev/null | tail -n +6 | xargs -r rm
+                        echo "✅ Backup created: backup_${timestamp}.tar.gz"
+                      else
+                        echo "ℹ️  No previous deployment found, skipping backup"
+                      fi
+
+               - name: Install Dependencies
+                 run: npm ci
+                 working-directory: ${{ github.workspace }}
+
+               - name: Run Tests (Optional)
+                 run: npm test --if-present
+                 working-directory: ${{ github.workspace }}
+                 continue-on-error: true
+
+               - name: Clean Build
+                 run: rm -rf dist build
+                 working-directory: ${{ github.workspace }}
+
+               - name: Build Application
+                 run: npm run build
+                 working-directory: ${{ github.workspace }}
+
+               - name: Setup Redis with Docker
+                 run: |
+                      REDIS_CONTAINER="${{ env.PROJECT_NAME }}-redis"
+                      echo "🔴 Setting up Redis..."
+
+                      if docker ps -a --format '{{.Names}}' | grep -q "^${REDIS_CONTAINER}$"; then
+                        echo "Restarting existing Redis container..."
+                        docker restart ${REDIS_CONTAINER}
+                      else
+                        echo "Creating new Redis container..."
+                        docker run -d \
+                          --name ${REDIS_CONTAINER} \
+                          --restart unless-stopped \
+                          -p ${{ env.REDIS_PORT }}:6379 \
+                          -v ${REDIS_CONTAINER}-data:/data \
+                          redis:7-alpine redis-server --appendonly yes
+                      fi
+
+                      echo "⏳ Waiting for Redis..."
+                      for i in {1..15}; do
+                        if docker exec ${REDIS_CONTAINER} redis-cli ping > /dev/null 2>&1; then
+                          echo "✅ Redis is ready!"
+                          break
+                        fi
+                        echo "Waiting... ($i/15)"
+                        sleep 2
+                      done
+                      docker ps | grep ${REDIS_CONTAINER}
+
+               - name: Setup Environment File
+                 run: |
+                      if [ ! -f "$PROJECT_DIR/.env" ]; then
+                        echo "⚙️ Creating .env file..."
+                        if [ -f "${{ github.workspace }}/.env.example" ]; then
+                          cp "${{ github.workspace }}/.env.example" "$PROJECT_DIR/.env"
+                        else
+                          cat > "$PROJECT_DIR/.env" << EOF
+                      NODE_ENV=production
+                      PORT=${{ env.APP_PORT }}
+                      REDIS_HOST=localhost
+                      REDIS_PORT=${{ env.REDIS_PORT }}
+                      REDIS_PASSWORD=
+                      EOF
+                        fi
+                      fi
+
+                      # Update environment variables
+                      sed -i "s/^PORT=.*/PORT=${{ env.APP_PORT }}/" "$PROJECT_DIR/.env"
+                      sed -i "s/^REDIS_PORT=.*/REDIS_PORT=${{ env.REDIS_PORT }}/" "$PROJECT_DIR/.env" || echo "REDIS_PORT=${{ env.REDIS_PORT }}" >> "$PROJECT_DIR/.env"
+                      sed -i "s/^REDIS_HOST=.*/REDIS_HOST=localhost/" "$PROJECT_DIR/.env" || echo "REDIS_HOST=localhost" >> "$PROJECT_DIR/.env"
+                      echo "✅ Environment configured"
+
+               - name: Copy Files to Project Directory
+                 run: |
+                      echo "📦 Copying built files to $PROJECT_DIR..."
+                      [ -d "${{ github.workspace }}/dist" ] && cp -r "${{ github.workspace }}/dist" "$PROJECT_DIR/" || true
+                      [ -d "${{ github.workspace }}/build" ] && cp -r "${{ github.workspace }}/build" "$PROJECT_DIR/" || true
+                      cp "${{ github.workspace }}/package.json" "$PROJECT_DIR/"
+                      cp "${{ github.workspace }}/package-lock.json" "$PROJECT_DIR/" 2>/dev/null || true
+
+                      # Copy ecosystem config (prioritize .js over .cjs)
+                      if [ -f "${{ github.workspace }}/ecosystem.config.js" ]; then
+                        cp "${{ github.workspace }}/ecosystem.config.js" "$PROJECT_DIR/"
+                        echo "✅ Copied ecosystem.config.js"
+                      elif [ -f "${{ github.workspace }}/ecosystem.config.cjs" ]; then
+                        cp "${{ github.workspace }}/ecosystem.config.cjs" "$PROJECT_DIR/"
+                        echo "✅ Copied ecosystem.config.cjs"
+                      fi
+
+                      echo "✅ Files copied successfully"
+
+               - name: Install Production Dependencies
+                 run: npm ci --omit=dev
+                 working-directory: ${{ env.PROJECT_DIR }}
+
+               - name: Ensure PM2 is Installed
+                 run: |
+                      if ! command -v pm2 &> /dev/null; then
+                        echo "📦 Installing PM2 globally..."
+                        npm install -g pm2
+                      else
+                        echo "✅ PM2 already installed"
+                        pm2 --version
+                      fi
+
+               - name: Create PM2 Ecosystem Config (Fallback)
+                 run: |
+                      if [ ! -f "$PROJECT_DIR/ecosystem.config.js" ] && [ ! -f "$PROJECT_DIR/ecosystem.config.cjs" ]; then
+                        echo "📝 Creating PM2 ecosystem config..."
+                        cat > "$PROJECT_DIR/ecosystem.config.js" << 'EOF'
+                      module.exports = {
+                        apps: [
+                          {
+                            name: 'templete-backend',
+                            script: 'dist/server.js',
+                            instances: 'max',
+                            exec_mode: 'cluster',
+                            autorestart: true,
+                            watch: false,
+                            max_memory_restart: '1G',
+                            kill_timeout: 5000,
+                            wait_ready: false,
+                            listen_timeout: 10000,
+                            max_restarts: 10,
+                            min_uptime: '10s',
+                            restart_delay: 4000,
+                            error_file: 'logs/pm2-err.log',
+                            out_file: 'logs/pm2-out.log',
+                            log_date_format: 'YYYY-MM-DD HH:mm:ss Z',
+                            merge_logs: true,
+                            log_type: 'json',
+                            env_production: {
+                              NODE_ENV: 'production',
+                              PORT: process.env.PORT || 3000,
+                            },
+                            source_map_support: true,
+                            instance_var: 'INSTANCE_ID',
+                            node_args: '--max-old-space-size=2048',
+                          },
+                        ],
+                      };
+                      EOF
+                        echo "✅ Fallback ecosystem config created"
+                      else
+                        echo "✅ Using existing ecosystem config"
+                      fi
+
+               - name: Stop Existing PM2 Processes (Safe)
+                 run: |
+                      cd "$PROJECT_DIR"
+                      echo "🛑 Checking for existing PM2 processes..."
+
+                      if pm2 describe templete-backend > /dev/null 2>&1; then
+                        echo "Found running instance, preparing for zero-downtime reload..."
+                      else
+                        echo "No existing instance found"
+                      fi
+
+               - name: Deploy with PM2 (Zero-Downtime)
+                 run: |
+                      cd "$PROJECT_DIR"
+                      echo "🚀 Deploying templete-backend with PM2..."
+
+                      if pm2 describe templete-backend > /dev/null 2>&1; then
+                        echo "🔄 Performing zero-downtime reload..."
+                        pm2 reload ecosystem.config.js --env production --update-env
+                      else
+                        echo "🆕 Starting new application..."
+                        pm2 start ecosystem.config.js --env production
+                      fi
+
+                      # Save PM2 process list
+                      pm2 save --force
+
+                      # Setup PM2 startup (if not already done)
+                      pm2 startup systemd -u $USER --hp $HOME || true
+
+                      echo "✅ Deployment successful!"
+
+               - name: Show Deployment Status
+                 run: |
+                      echo ""
+                      echo "=========================================="
+                      echo "📊 Deployment Status"
+                      echo "=========================================="
+                      echo "📦 Project: ${{ env.PROJECT_NAME }}"
+                      echo "📁 Directory: $PROJECT_DIR"
+                      echo "🔌 App Port: ${{ env.APP_PORT }}"
+                      echo "🔴 Redis Port: ${{ env.REDIS_PORT }}"
+                      echo "=========================================="
+                      echo ""
+                      echo "📊 PM2 Status:"
+                      pm2 list
+                      echo ""
+                      echo "📋 PM2 Info:"
+                      pm2 info templete-backend
+                      echo ""
+                      echo "🐳 Docker Status:"
+                      docker ps --filter "name=${{ env.PROJECT_NAME }}-redis"
+                      echo ""
+                      echo "🔴 Redis Status:"
+                      docker exec ${{ env.PROJECT_NAME }}-redis redis-cli ping 2>/dev/null && echo "✅ Redis: CONNECTED" || echo "❌ Redis: DISCONNECTED"
+                      echo "=========================================="
+
+               - name: Health Check
+                 run: |
+                      echo "🏥 Performing health check..."
+                      sleep 15
+
+                      for i in {1..10}; do
+                        echo "Attempt $i/10..."
+                        response=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:${{ env.APP_PORT }}/health 2>/dev/null || echo "000")
+                        
+                        if [ "$response" = "200" ] || [ "$response" = "301" ] || [ "$response" = "302" ]; then
+                          echo "✅ Health check passed! App is responding (Status: $response)"
+                          exit 0
+                        fi
+                        
+                        echo "⚠️  Got response: $response"
+                        [ $i -lt 10 ] && sleep 5
+                      done
+
+                      echo "⚠️  Health check inconclusive - checking PM2 logs..."
+                      pm2 logs templete-backend --lines 50 --nostream
+
+               - name: Show Recent Logs
+                 if: always()
+                 run: |
+                      echo "📜 Recent Application Logs:"
+                      pm2 logs templete-backend --lines 30 --nostream || true
+
+               - name: Rollback on Failure
+                 if: failure()
+                 run: |
+                      echo "🔄 Deployment failed! Attempting rollback..."
+                      cd "$PROJECT_DIR"
+
+                      latest_backup=$(ls -t backups/backup_*.tar.gz 2>/dev/null | head -1)
+
+                      if [ -n "$latest_backup" ]; then
+                        echo "📦 Found backup: $latest_backup"
+                        echo "🔄 Restoring previous version..."
+                        
+                        # Stop current version
+                        pm2 stop templete-backend || true
+                        
+                        # Extract backup
+                        tar -xzf "$latest_backup" -C "$PROJECT_DIR"
+                        
+                        # Reinstall dependencies
+                        npm ci --omit=dev
+                        
+                        # Restart with old version
+                        pm2 reload ecosystem.config.js --env production --update-env
+                        
+                        echo "✅ Rollback completed"
+                        pm2 list
+                      else
+                        echo "⚠️  No backup found - cannot rollback"
+                        echo "❌ Manual intervention required!"
+                        pm2 logs templete-backend --lines 100 --nostream
+                      fi
+
+               - name: Cleanup
+                 if: always()
+                 run: |
+                      echo "🧹 Cleaning up..."
+                      rm -rf "${{ github.workspace }}/node_modules" 2>/dev/null || true
+
+                      # Clean old PM2 logs (keep last 7 days)
+                      find "$PROJECT_DIR/logs" -name "*.log" -mtime +7 -delete 2>/dev/null || true
+
+                      echo "✅ Cleanup complete"

@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Payment Failed</title>
+    <style>
+      * {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+      }
+
+      body {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        min-height: 100vh;
+        font-family: Arial, sans-serif;
+        background-color: #fdecea; /* Light red background */
+      }
+
+      .container {
+        text-align: center;
+        padding: 2rem;
+        background: #ffffff;
+        border-radius: 10px;
+        box-shadow: 0 4px 12px rgba(255, 0, 0, 0.2);
+        max-width: 500px;
+        width: 90%;
+      }
+
+      .error-icon {
+        font-size: 4rem;
+        color: #e53935; /* Red color for error icon */
+        margin-bottom: 1rem;
+      }
+
+      h1 {
+        color: #d32f2f; /* Darker red for the heading */
+        margin-bottom: 1rem;
+      }
+
+      p {
+        color: #c62828; /* Medium red for text */
+        margin-bottom: 2rem;
+      }
+
+      .btn-home {
+        display: inline-block;
+        padding: 0.5rem 1.5rem;
+        color: #fff;
+        background-color: #e53935; /* Red button */
+        text-decoration: none;
+        border-radius: 5px;
+        transition: background-color 0.3s;
+      }
+
+      .btn-home:hover {
+        background-color: #c62828; /* Darker red on hover */
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <div class="error-icon">❌</div>
+      <h1>Payment Failed</h1>
+      <p>Unfortunately, your transaction could not be completed.</p>
+      <a href="/" class="btn-home">Return to Home</a>
+    </div>
+  </body>
+</html>
