@@ -4,6 +4,14 @@ import { AuthRouter } from '../app/modules/auth/auth.route';
 import SettingsRouter from '../app/modules/settings/settings.route';
 import { SessionRouter } from '../app/modules/session/session.route';
 import { UserManagementsRouter } from '../app/modules/userManagements/userManagements.router';
+import { FaqRoutes } from '../app/modules/faq/faq.route';
+import { BorrowerRouter } from '../app/modules/borrower/borrower.route';
+import { LoanRouter } from '../app/modules/loan/loan.route';
+import { StripeConnectRouter } from '../app/modules/stripeConnect/stripeConnect.route';
+import { IntegrationRouter } from '../app/modules/integration/integration.route';
+import { TransactionRouter } from '../app/modules/transaction/transaction.route';
+import { DashboardRouter } from '../app/modules/dashboard/dashboard.route';
+import { SupportTicketRouter } from '../app/modules/support/supportTicket.route';
 
 const router = express.Router();
 const routes = [
@@ -26,6 +34,38 @@ const routes = [
      {
           path: '/user-managements',
           route: UserManagementsRouter,
+     },
+     {
+          path: '/faqs',
+          route: FaqRoutes,
+     },
+     {
+          path: '/borrowers',
+          route: BorrowerRouter,
+     },
+     {
+          path: '/loans',
+          route: LoanRouter,
+     },
+     {
+          path: '/payouts',
+          route: StripeConnectRouter,
+     },
+     {
+          path: '/integrations',
+          route: IntegrationRouter,
+     },
+     {
+          path: '/transactions',
+          route: TransactionRouter,
+     },
+     {
+          path: '/dashboards',
+          route: DashboardRouter,
+     },
+     {
+          path: '/support',
+          route: SupportTicketRouter,
      },
 ];
 

@@ -58,6 +58,31 @@ const FILE_TYPES: Record<string, FileTypeConfig> = {
           errorMessage:
                'Only PDF, Word, Excel, PowerPoint, text, RTF, zip, 7z, and rar files are supported',
      },
+     documentOrImage: {
+          mimeTypes: [
+               'image/png',
+               'image/jpg',
+               'image/jpeg',
+               'image/svg',
+               'image/webp',
+               'image/svg+xml',
+               'application/octet-stream',
+               'application/pdf',
+               'application/msword',
+               'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+               'application/vnd.ms-excel',
+               'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+               'application/vnd.ms-powerpoint',
+               'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+               'text/plain',
+               'application/rtf',
+               'application/zip',
+               'application/x-7z-compressed',
+               'application/x-rar-compressed',
+          ],
+          errorMessage:
+               'Only PDF, Word, Excel, text, images (JPEG, JPG, PNG, WebP) and archive files are supported',
+     },
 };
 
 // Field configurations - Add new fields here easily!
@@ -96,8 +121,14 @@ const FIELD_CONFIGS: FieldConfig[] = [
 ];
 
 const fileUploadHandler = (customFields?: FieldConfig[]) => {
-     // Use custom fields if provided, otherwise use default
-     const fieldsToUse = customFields || FIELD_CONFIGS;
+     // Merge custom fields with default config, ensuring no duplicates by fieldName
+     let fieldsToUse = FIELD_CONFIGS;
+     if (customFields) {
+          const mergedMap = new Map();
+          FIELD_CONFIGS.forEach((f) => mergedMap.set(f.fieldName, f));
+          customFields.forEach((f) => mergedMap.set(f.fieldName, f));
+          fieldsToUse = Array.from(mergedMap.values());
+     }
 
      // Create upload folder
      const baseUploadDir = getUploadDirectory();
@@ -117,7 +148,7 @@ const fileUploadHandler = (customFields?: FieldConfig[]) => {
 
      const storage = multer.diskStorage({
           destination: (req, file, cb) => {
-               const fieldConfig = fieldConfigMap.get(file.fieldname);
+               const fieldConfig = fieldConfigMap.get(file.fieldname.trim());
 
                let uploadDir;
                if (fieldConfig) {
@@ -143,15 +174,11 @@ const fileUploadHandler = (customFields?: FieldConfig[]) => {
 
      // Dynamic file filter
      const fileFilter = (req: Request, file: any, cb: FileFilterCallback) => {
-          const fieldConfig = fieldConfigMap.get(file.fieldname);
+          const fieldConfig = fieldConfigMap.get(file.fieldname.trim());
 
           if (!fieldConfig) {
-               // Allow PDF for unknown fields as fallback
-               if (file.mimetype === 'application/pdf') {
-                    cb(null, true);
-               } else {
-                    cb(new AppError(StatusCodes.BAD_REQUEST, 'This file type is not supported'));
-               }
+               // Allow any file type for unknown fields as fallback to prevent upload blocks
+               cb(null, true);
                return;
           }
 
@@ -164,21 +191,36 @@ const fileUploadHandler = (customFields?: FieldConfig[]) => {
           }
      };
 
-     // Generate fields array dynamically
-     const multerFields = fieldsToUse.map((config) => ({
-          name: config.fieldName,
-          maxCount: config.maxCount,
-     }));
-
      const upload = multer({
           storage: storage,
           limits: {
                fileSize: 100 * 1024 * 1024, // 100MB file size limit
           },
           fileFilter: fileFilter,
-     }).fields(multerFields);
+     }).any();
 
-     return upload;
+     // Custom middleware wrapper to restructure any() array output back into fields object
+     return (req: any, res: any, next: any) => {
+          upload(req, res, (err: any) => {
+               if (err) {
+                    return next(err);
+               }
+
+               if (req.files && Array.isArray(req.files)) {
+                    const filesObj: Record<string, Express.Multer.File[]> = {};
+                    req.files.forEach((file: any) => {
+                         const trimmedFieldname = file.fieldname.trim();
+                         file.fieldname = trimmedFieldname;
+                         if (!filesObj[trimmedFieldname]) {
+                              filesObj[trimmedFieldname] = [];
+                         }
+                         filesObj[trimmedFieldname].push(file);
+                    });
+                    req.files = filesObj as any;
+               }
+               next();
+          });
+     };
 };
 
 export default fileUploadHandler;

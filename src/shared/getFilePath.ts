@@ -11,6 +11,10 @@ export type IFolderName =
      | 'video'
      | 'document'
      | 'thumbnail'
+     | 'certificateOfIncorporation'
+     | 'ownersPhotoId'
+     | 'bankStatements'
+     | 'vatReturns'
      | 'others';
 
 //single file

@@ -260,7 +260,7 @@ const verifyEmailToDB = async (payload: IVerifyEmail, ip?: string, userAgent?: s
                { _id: isExistUser._id },
                {
                     'authentication.purpose': null,
-                    'verified': true,
+                    'isVerified': true,
                     'authentication.oneTimeCode': null,
                     'authentication.expireAt': null,
                },

@@ -12,14 +12,14 @@ const usersData = [
           email: config.super_admin.email,
           role: USER_ROLES.SUPER_ADMIN,
           password: config.super_admin.password,
-          verified: true,
+          isVerified: true,
      },
      {
           name: 'User',
           email: 'user@gmail.com',
           role: USER_ROLES.USER,
           password: 'hello123',
-          verified: true,
+          isVerified: true,
      },
 ];
 

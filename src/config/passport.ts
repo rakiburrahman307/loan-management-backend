@@ -30,7 +30,7 @@ passport.use(
                               // Update existing user with Google ID
                               user.googleId = profile.id;
                               user.oauthProvider = 'google';
-                              user.verified = true;
+                              user.isVerified = true;
                               await user.save();
                          } else {
                               // Create new user
@@ -40,7 +40,7 @@ passport.use(
                                    email: profile.emails?.[0]?.value,
                                    image: profile.photos?.[0]?.value,
                                    oauthProvider: 'google',
-                                   verified: true,
+                                   isVerified: true,
                               });
                          }
                     }
@@ -78,7 +78,7 @@ passport.use(
                               // Update existing user with Facebook ID
                               user.facebookId = profile.id;
                               user.oauthProvider = 'facebook';
-                              user.verified = true;
+                              user.isVerified = true;
                               await user.save();
                          } else {
                               // Create new user
@@ -88,7 +88,7 @@ passport.use(
                                    email: profile.emails?.[0]?.value,
                                    image: profile.photos?.[0]?.value,
                                    oauthProvider: 'facebook',
-                                   verified: true,
+                                   isVerified: true,
                               });
                          }
                     }

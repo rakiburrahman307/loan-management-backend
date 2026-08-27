@@ -15,7 +15,7 @@
           "seed": "ts-node src/seed/seedAdmin.ts",
           "build": "tsc && npx cpx \"src/views/**/*\" dist/views",
           "start": "node dist/server.js",
-          "stripe": "stripe listen --forward-to=http://10.10.26.180:5000/api/v1/stripe/webhook",
+          "stripe": "stripe listen --forward-to=http://10.10.26.180:5004/api/v1/stripe/webhook",
           "queue:health": "ts-node src/scripts/checkQueueHealth.ts",
           "queue:stats": "ts-node src/scripts/getQueueStats.ts",
           "queue:clean": "ts-node src/scripts/cleanQueues.ts",
