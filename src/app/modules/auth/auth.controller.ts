@@ -113,7 +113,7 @@ const resendOtp = catchAsync(async (req, res) => {
 
 // refresh token
 const refreshToken = catchAsync(async (req, res) => {
-     const refreshToken = req.headers?.token as string;
+     const refreshToken = (req.headers.token || req.body.refreshToken || req.cookies?.refreshToken || req.headers.refreshtoken) as string;
      const result = await AuthService.refreshToken(refreshToken);
 
      sendResponse(res, {

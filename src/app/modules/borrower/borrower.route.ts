@@ -1,20 +1,32 @@
 import express from 'express';
 import auth from '../../middleware/auth';
-import { USER_ROLES } from '../../../enums/user';
+import { ROLE_GROUPS } from '../../../enums/user';
 import { BorrowerController } from './borrower.controller';
 
 const router = express.Router();
 
 // Borrower Client routes
-router.get('/profile', auth(USER_ROLES.USER), BorrowerController.getProfile);
-router.put('/profile', auth(USER_ROLES.USER), BorrowerController.updateProfile);
+router.get('/profile', auth(...ROLE_GROUPS.USERS), BorrowerController.getProfile);
+router.put('/profile', auth(...ROLE_GROUPS.USERS), BorrowerController.updateProfile);
 
-router.post('/integration/generate', auth(USER_ROLES.USER), BorrowerController.generateAPIKeys);
-router.get('/integration', auth(USER_ROLES.USER), BorrowerController.getIntegration);
+router.post(
+     '/integration/generate',
+     auth(...ROLE_GROUPS.USERS),
+     BorrowerController.generateAPIKeys,
+);
+router.get('/integration', auth(...ROLE_GROUPS.USERS), BorrowerController.getIntegration);
 
 // Admin routes
-router.get('/admin/borrowers', auth(USER_ROLES.ADMIN, USER_ROLES.SUPER_ADMIN), BorrowerController.adminGetBorrowers);
-router.get('/admin/borrowers-cards', auth(USER_ROLES.ADMIN, USER_ROLES.SUPER_ADMIN), BorrowerController.adminGetBorrowersCards);
-router.get('/admin/borrowers/:id', auth(USER_ROLES.ADMIN, USER_ROLES.SUPER_ADMIN), BorrowerController.adminGetBorrowerById);
+router.get('/admin/borrowers', auth(...ROLE_GROUPS.ADMINS), BorrowerController.adminGetBorrowers);
+router.get(
+     '/admin/borrowers-cards',
+     auth(...ROLE_GROUPS.ADMINS),
+     BorrowerController.adminGetBorrowersCards,
+);
+router.get(
+     '/admin/borrowers/:id',
+     auth(...ROLE_GROUPS.ADMINS),
+     BorrowerController.adminGetBorrowerById,
+);
 
 export const BorrowerRouter = router;
