@@ -53,7 +53,7 @@ const getIntegration = catchAsync(async (req, res) => {
 
 // Admin Controllers
 const adminGetBorrowers = catchAsync(async (req, res) => {
-     const filters = pick(req.query, ['page', 'limit', 'sortBy', 'sortOrder', 'searchTerm']);
+     const filters = pick(req.query, ['page', 'limit', 'sortBy', 'sortOrder', 'searchTerm', 'status', 'dateRange']);
      const result = await BorrowerService.adminGetBorrowers(filters);
      sendResponse(res, {
           success: true,

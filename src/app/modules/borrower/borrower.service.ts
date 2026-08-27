@@ -111,6 +111,52 @@ const adminGetBorrowers = async (filters: {
           ];
      }
 
+     if (filters.status) {
+          const statusLower = filters.status.toLowerCase();
+          if (statusLower === 'active') {
+               const activeBorrowerIds = await Loan.distinct('borrowerId', {
+                    status: { $in: ['ACTIVE', 'PARTIALLY_REPAID'] },
+               });
+               query._id = { $in: activeBorrowerIds };
+          } else if (statusLower === 'pending review') {
+               const pendingBorrowerIds = await LoanApplication.distinct('borrowerId', {
+                    status: 'PENDING',
+               });
+               query._id = { $in: pendingBorrowerIds };
+          } else if (statusLower === 'inactive') {
+               const activeIds = await Loan.distinct('borrowerId', {
+                    status: { $in: ['ACTIVE', 'PARTIALLY_REPAID'] },
+               });
+               const pendingIds = await LoanApplication.distinct('borrowerId', {
+                    status: 'PENDING',
+               });
+               query._id = { $nin: [...activeIds, ...pendingIds] };
+          }
+     }
+
+     if ((filters as any).dateRange) {
+          const dateRangeOption = (filters as any).dateRange;
+          const now = new Date();
+          let startDate: Date | null = null;
+
+          if (dateRangeOption === 'last7days') {
+               startDate = new Date();
+               startDate.setDate(now.getDate() - 7);
+          } else if (dateRangeOption === 'last30days') {
+               startDate = new Date();
+               startDate.setDate(now.getDate() - 30);
+          } else if (dateRangeOption === 'last90days') {
+               startDate = new Date();
+               startDate.setDate(now.getDate() - 90);
+          } else if (dateRangeOption === 'thisyear') {
+               startDate = new Date(now.getFullYear(), 0, 1);
+          }
+
+          if (startDate) {
+               query.createdAt = { $gte: startDate };
+          }
+     }
+
      const total = await Borrower.countDocuments(query);
      const totalPage = Math.ceil(total / limit);
 
@@ -146,6 +192,11 @@ const adminGetBorrowers = async (filters: {
                }
           }
 
+          const progressPercent =
+               activeLoan && activeLoan.totalRepayableAmount > 0
+                    ? Math.round((activeLoan.repaidAmount / activeLoan.totalRepayableAmount) * 100)
+                    : 0;
+
           data.push({
                _id: borrower._id,
                businessDetails: borrower.businessDetails,
@@ -159,10 +210,12 @@ const adminGetBorrowers = async (filters: {
                     totalFunding: activeLoan.principalAmount,
                     outstanding: activeLoan.outstandingBalance,
                     repaymentPercentage: activeLoan.repaymentPercentage,
+                    repaymentProgress: progressPercent,
                } : {
                     totalFunding: 0,
                     outstanding: 0,
                     repaymentPercentage: 0,
+                    repaymentProgress: 0,
                },
                status,
           });
