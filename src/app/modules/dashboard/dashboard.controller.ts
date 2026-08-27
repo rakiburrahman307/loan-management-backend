@@ -14,7 +14,8 @@ const getAdminOverviewCards = catchAsync(async (req, res) => {
 });
 
 const getAdminFundingVsRepaymentsChart = catchAsync(async (req, res) => {
-     const result = await DashboardService.getAdminFundingVsRepaymentsChart();
+     const { year } = req.query;
+     const result = await DashboardService.getAdminFundingVsRepaymentsChart(year as string);
      sendResponse(res, {
           success: true,
           statusCode: StatusCodes.OK,
@@ -57,7 +58,8 @@ const getClientRepaymentProgress = catchAsync(async (req, res) => {
 
 const getClientSalesVsRepaymentChart = catchAsync(async (req, res) => {
      const userId = req.user.id;
-     const result = await DashboardService.getClientSalesVsRepaymentChart(userId);
+     const { year } = req.query;
+     const result = await DashboardService.getClientSalesVsRepaymentChart(userId, year as string);
      sendResponse(res, {
           success: true,
           statusCode: StatusCodes.OK,

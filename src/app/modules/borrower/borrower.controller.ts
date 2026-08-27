@@ -76,7 +76,7 @@ const adminGetBorrowersCards = catchAsync(async (req, res) => {
 
 const adminGetBorrowerById = catchAsync(async (req, res) => {
      const { id } = req.params;
-     const queryOptions = pick(req.query, ['page', 'limit']);
+     const queryOptions = pick(req.query, ['page', 'limit', 'year']);
      const result = await BorrowerService.adminGetBorrowerById(id, queryOptions);
      sendResponse(res, {
           success: true,

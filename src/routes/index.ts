@@ -60,7 +60,7 @@ const routes = [
           route: TransactionRouter,
      },
      {
-          path: '/dashboards',
+          path: '/dashboard',
           route: DashboardRouter,
      },
      {
