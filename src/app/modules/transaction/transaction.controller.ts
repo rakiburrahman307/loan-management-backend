@@ -1,44 +1,44 @@
 import { StatusCodes } from 'http-status-codes';
 import catchAsync from '../../../shared/catchAsync';
 import sendResponse from '../../../shared/sendResponse';
-import { Transaction } from './transaction.model';
-import { Borrower } from '../borrower/borrower.model';
+import { TransactionService } from './transaction.service';
+import pick from '../../../shared/pick';
 
 const getAdminTransactions = catchAsync(async (req, res) => {
-     const result = await Transaction.find()
-          .sort({ createdAt: -1 })
-          .populate({
-               path: 'borrowerId',
-               populate: { path: 'userId', select: 'name email' },
-          });
+     const filters = pick(req.query, ['page', 'limit', 'status', 'searchTerm']);
+     const result = await TransactionService.getAdminTransactions(filters);
 
      sendResponse(res, {
           success: true,
           statusCode: StatusCodes.OK,
           message: 'All transactions retrieved successfully',
-          data: result,
+          data: result.data,
+          meta: result.meta,
      });
 });
 
 const getClientTransactions = catchAsync(async (req, res) => {
      const userId = req.user.id;
-     const borrower = await Borrower.findOne({ userId });
-
-     if (!borrower) {
-          return sendResponse(res, {
-               success: true,
-               statusCode: StatusCodes.OK,
-               message: 'No transactions found',
-               data: [],
-          });
-     }
-
-     const result = await Transaction.find({ borrowerId: borrower._id }).sort({ createdAt: -1 });
+     const filters = pick(req.query, ['page', 'limit', 'status', 'dateRange']);
+     const result = await TransactionService.getClientTransactions(userId, filters);
 
      sendResponse(res, {
           success: true,
           statusCode: StatusCodes.OK,
           message: 'Transactions retrieved successfully',
+          data: result.data,
+          meta: result.meta,
+     });
+});
+
+const getClientTransactionCards = catchAsync(async (req, res) => {
+     const userId = req.user.id;
+     const result = await TransactionService.getClientTransactionCards(userId);
+
+     sendResponse(res, {
+          success: true,
+          statusCode: StatusCodes.OK,
+          message: 'Client transaction metrics retrieved successfully',
           data: result,
      });
 });
@@ -46,4 +46,5 @@ const getClientTransactions = catchAsync(async (req, res) => {
 export const TransactionController = {
      getAdminTransactions,
      getClientTransactions,
+     getClientTransactionCards,
 };
