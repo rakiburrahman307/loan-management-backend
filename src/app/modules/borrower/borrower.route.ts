@@ -6,8 +6,8 @@ import { BorrowerController } from './borrower.controller';
 const router = express.Router();
 
 // Borrower Client routes
-router.get('/profile', auth(...ROLE_GROUPS.USERS), BorrowerController.getProfile);
-router.put('/profile', auth(...ROLE_GROUPS.USERS), BorrowerController.updateProfile);
+router.get('/client-info', auth(...ROLE_GROUPS.USERS), BorrowerController.getProfile);
+router.put('/update/client-info', auth(...ROLE_GROUPS.USERS), BorrowerController.updateProfile);
 
 router.post(
      '/integration/generate',

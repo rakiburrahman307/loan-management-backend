@@ -30,6 +30,11 @@ export type IBorrower = {
           bankStatements?: string[];
           vatReturns?: string[];
      };
+     primaryContact?: {
+          fullName: string;
+          businessEmail: string;
+          phoneNumber: string;
+     };
      stripeAccountId?: string;
      stripeOnboardingComplete: boolean;
 };

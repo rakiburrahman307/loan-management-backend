@@ -37,6 +37,11 @@ const borrowerSchema = new Schema<IBorrower>(
                bankStatements: [{ type: String }],
                vatReturns: [{ type: String }],
           },
+          primaryContact: {
+               fullName: { type: String, default: '' },
+               businessEmail: { type: String, default: '' },
+               phoneNumber: { type: String, default: '' },
+          },
           stripeAccountId: { type: String, default: '' },
           stripeOnboardingComplete: { type: Boolean, default: false },
      },

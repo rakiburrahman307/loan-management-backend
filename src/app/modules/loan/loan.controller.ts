@@ -49,6 +49,30 @@ const getActiveLoan = catchAsync(async (req, res) => {
      });
 });
 
+const getClientFundingDetails = catchAsync(async (req, res) => {
+     const userId = req.user.id;
+     const result = await LoanService.getClientFundingDetails(userId);
+     sendResponse(res, {
+          success: true,
+          statusCode: StatusCodes.OK,
+          message: 'Client funding overview retrieved successfully',
+          data: result,
+     });
+});
+
+const getClientFundingHistory = catchAsync(async (req, res) => {
+     const userId = req.user.id;
+     const filters = pick(req.query, ['page', 'limit', 'dateRange', 'searchTerm']);
+     const result = await LoanService.getClientFundingHistory(userId, filters);
+     sendResponse(res, {
+          success: true,
+          statusCode: StatusCodes.OK,
+          message: 'Client repayment history retrieved successfully',
+          data: result.data,
+          meta: result.meta,
+     });
+});
+
 const getLoans = catchAsync(async (req, res) => {
      const userId = req.user.id;
      const queryOptions = pick(req.query, [
@@ -145,4 +169,6 @@ export const LoanController = {
      adminGetApplicationsCards,
      adminReviewApplication,
      retryDisbursement,
+     getClientFundingDetails,
+     getClientFundingHistory,
 };

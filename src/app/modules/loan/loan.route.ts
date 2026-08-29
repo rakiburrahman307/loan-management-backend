@@ -67,6 +67,8 @@ router.put(
 
 router.get('/applications', auth(...ROLE_GROUPS.USERS), LoanController.getApplications);
 router.get('/active', auth(...ROLE_GROUPS.USERS), LoanController.getActiveLoan);
+router.get('/client/funding', auth(...ROLE_GROUPS.USERS), LoanController.getClientFundingDetails);
+router.get('/client/funding/history', auth(...ROLE_GROUPS.USERS), LoanController.getClientFundingHistory);
 
 // Admin routes
 router.get('/admin/applications', auth(...ROLE_GROUPS.ADMINS), LoanController.adminGetApplications);

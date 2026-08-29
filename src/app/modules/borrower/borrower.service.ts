@@ -4,6 +4,7 @@ import mongoose from 'mongoose';
 import AppError from '../../../errors/AppError';
 import { Borrower } from './borrower.model';
 import { IBorrower } from './borrower.interface';
+import { User } from '../user/user.model';
 import { Integration } from '../integration/integration.model';
 import { Loan } from '../loan/loan.model';
 import { LoanApplication } from '../loan/loanApplication.model';
@@ -15,28 +16,51 @@ const getProfile = async (userId: string) => {
      if (!borrower) {
           borrower = await Borrower.create({ userId });
      }
-     return borrower;
+
+     return {
+          businessDetails: {
+               legalName: borrower.businessDetails?.legalName || '',
+               crn: borrower.businessDetails?.crn || '',
+               storeUrl: borrower.businessDetails?.storeUrl || '',
+               industrySector: borrower.businessDetails?.industrySector || '',
+               yearsInBusiness: borrower.businessDetails?.yearsInBusiness || 0,
+               registeredAddress: borrower.businessDetails?.registeredAddress || '',
+          },
+          primaryContact: {
+               fullName: borrower.primaryContact?.fullName || '',
+               businessEmail: borrower.primaryContact?.businessEmail || '',
+               phoneNumber: borrower.primaryContact?.phoneNumber || '',
+          },
+     };
 };
 
-const updateProfile = async (userId: string, payload: Partial<IBorrower>) => {
+const updateProfile = async (userId: string, payload: any) => {
      let borrower = await Borrower.findOne({ userId });
      if (!borrower) {
           borrower = await Borrower.create({ userId });
      }
 
-     // Prevent editing Stripe Account details directly
-     const cleanPayload = { ...payload };
-     delete cleanPayload.stripeAccountId;
-     delete cleanPayload.stripeOnboardingComplete;
-     delete cleanPayload.userId;
+     // 1. Update Borrower businessDetails if provided
+     if (payload.businessDetails) {
+          const cleanBusinessDetails = { ...payload.businessDetails };
+          borrower.businessDetails = {
+               ...borrower.businessDetails,
+               ...cleanBusinessDetails,
+          };
+     }
 
-     const updated = await Borrower.findOneAndUpdate(
-          { userId },
-          { $set: cleanPayload },
-          { new: true, runValidators: true },
-     );
+     // 2. Update Borrower primaryContact if provided
+     if (payload.primaryContact) {
+          const cleanPrimaryContact = { ...payload.primaryContact };
+          borrower.primaryContact = {
+               ...borrower.primaryContact,
+               ...cleanPrimaryContact,
+          };
+     }
 
-     return updated;
+     await borrower.save();
+
+     return getProfile(userId);
 };
 
 const generateAPIKeys = async (userId: string, storeUrl?: string) => {

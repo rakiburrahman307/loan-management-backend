@@ -4,6 +4,8 @@ import { Borrower } from '../borrower/borrower.model';
 import { LoanApplication } from './loanApplication.model';
 import { Loan } from './loan.model';
 import { Transaction } from '../transaction/transaction.model';
+import { LoanRepayment } from '../transaction/loanRepayment.model';
+import { Payment } from '../payment/payment.model';
 import stripe from '../../../config/stripe';
 import mongoose from 'mongoose';
 
@@ -384,10 +386,14 @@ const adminGetApplications = async (
      const sortConditions: any = {};
      sortConditions[sortBy] = sortOrder;
 
-     const query: any = {};
+     const query: any = {
+          status: { $ne: 'DRAFT' },
+     };
 
      if (filters.status) {
-          query.status = filters.status;
+          if (filters.status !== 'DRAFT') {
+               query.status = filters.status;
+          }
      }
 
      if (filters.searchTerm) {
@@ -637,6 +643,195 @@ const retryDisbursement = async (loanId: string) => {
      }
 };
 
+const getClientFundingDetails = async (userId: string) => {
+     const borrower = await Borrower.findOne({ userId: new mongoose.Types.ObjectId(userId) });
+     if (!borrower) {
+          throw new AppError(StatusCodes.NOT_FOUND, 'Borrower profile not found');
+     }
+
+     const activeLoan = await Loan.findOne({
+          borrowerId: borrower._id,
+          status: { $in: ['ACTIVE', 'PARTIALLY_REPAID'] },
+     });
+
+     if (!activeLoan) {
+          return {
+               hasActiveLoan: false,
+          };
+     }
+
+     const percentCleared =
+          activeLoan.totalRepayableAmount > 0
+               ? Math.round((activeLoan.repaidAmount / activeLoan.totalRepayableAmount) * 100)
+               : 0;
+
+     // Weekly Avg calculation
+     const timeDiff = Math.max(1, Date.now() - new Date(activeLoan.activatedAt || (activeLoan as any).createdAt).getTime());
+     const weeks = timeDiff / (1000 * 60 * 60 * 24 * 7);
+     const weeklyAvg = activeLoan.repaidAmount / Math.max(1, weeks);
+
+     // Total Sales Linked
+     const salesResult = await Payment.aggregate([
+          { $match: { borrowerId: borrower._id, status: 'COMPLETED' } },
+          { $group: { _id: null, total: { $sum: '$amount' } } },
+     ]);
+     const totalSalesLinked = (salesResult[0]?.total || 0) / 100;
+
+     // Facility ID format: #OB-XXXXX-LF (using substring of ID)
+     const facilityId = `#OB-${activeLoan._id.toString().substring(18).toUpperCase()}-LF`;
+
+     // Remaining balance
+     const remainingBalance = activeLoan.outstandingBalance;
+
+     // Repayment this week (last 7 days)
+     const oneWeekAgo = new Date();
+     oneWeekAgo.setDate(oneWeekAgo.getDate() - 7);
+     const thisWeekResult = await LoanRepayment.aggregate([
+          { $match: { loanId: activeLoan._id, createdAt: { $gte: oneWeekAgo } } },
+          { $group: { _id: null, total: { $sum: '$amount' } } },
+     ]);
+     const repaymentThisWeek = thisWeekResult[0]?.total || 0;
+
+     // Destination bank
+     const bankName = borrower.bankingDetails?.bankName || '';
+     const accountNumber = borrower.bankingDetails?.accountNumber || '';
+     const last4 = accountNumber.length >= 4 ? accountNumber.slice(-4) : accountNumber;
+     const destinationBank = bankName ? `${bankName} account ****${last4}` : (last4 ? `****${last4}` : 'N/A');
+
+     // Last Repayment
+     const lastRepaymentDoc = await LoanRepayment.findOne({ loanId: activeLoan._id }).sort({ createdAt: -1 });
+     const lastRepayment = lastRepaymentDoc
+          ? {
+                 amount: lastRepaymentDoc.amount,
+                 date: (lastRepaymentDoc as any).createdAt || lastRepaymentDoc.date,
+            }
+          : null;
+
+     return {
+          hasActiveLoan: true,
+          percentCleared,
+          amountPaid: activeLoan.repaidAmount,
+          amountTotal: activeLoan.totalRepayableAmount,
+          initiatedDate: activeLoan.activatedAt || (activeLoan as any).createdAt,
+          weeklyAvg,
+          totalSalesLinked,
+          facilityId,
+          remainingBalance,
+          repaymentThisWeek,
+          repaymentRate: activeLoan.repaymentPercentage,
+          loanAmount: activeLoan.principalAmount,
+          disbursedDate: activeLoan.activatedAt || (activeLoan as any).createdAt,
+          destinationBank,
+          lastRepayment,
+     };
+};
+
+const getClientFundingHistory = async (
+     userId: string,
+     filters: { page?: number; limit?: number; dateRange?: string; searchTerm?: string } = {},
+) => {
+     const page = Number(filters.page || 1);
+     const limit = Number(filters.limit || 10);
+     const skip = (page - 1) * limit;
+
+     const borrower = await Borrower.findOne({ userId: new mongoose.Types.ObjectId(userId) });
+     if (!borrower) {
+          throw new AppError(StatusCodes.NOT_FOUND, 'Borrower profile not found');
+     }
+
+     const activeLoan = await Loan.findOne({
+          borrowerId: borrower._id,
+          status: { $in: ['ACTIVE', 'PARTIALLY_REPAID'] },
+     });
+
+     if (!activeLoan) {
+          return {
+               meta: { page, limit, total: 0, totalPage: 0 },
+               data: [],
+          };
+     }
+
+     const matchQuery: any = { loanId: activeLoan._id };
+
+     if (filters.searchTerm) {
+          const searchRegex = new RegExp(filters.searchTerm, 'i');
+          const orConditions: any[] = [];
+
+          // Search associated Payments
+          const payments = await Payment.find({
+               borrowerId: borrower._id,
+               $or: [
+                    { customerEmail: searchRegex },
+                    { paymentIntentId: searchRegex },
+               ]
+          }).select('_id');
+
+          const matchedPaymentIds = payments.map(p => p._id);
+          if (matchedPaymentIds.length > 0) {
+               orConditions.push({ paymentId: { $in: matchedPaymentIds } });
+          }
+
+          // Search repayment amount directly if numeric
+          const numSearch = Number(filters.searchTerm);
+          if (!isNaN(numSearch)) {
+               orConditions.push({ amount: numSearch });
+          }
+
+          if (orConditions.length > 0) {
+               matchQuery.$or = orConditions;
+          } else {
+               // Force empty array if nothing matched
+               matchQuery._id = null;
+          }
+     }
+
+     if (filters.dateRange) {
+          const now = new Date();
+          let startDate: Date | null = null;
+          if (filters.dateRange === 'last7days') {
+               startDate = new Date();
+               startDate.setDate(now.getDate() - 7);
+          } else if (filters.dateRange === 'last30days') {
+               startDate = new Date();
+               startDate.setDate(now.getDate() - 30);
+          } else if (filters.dateRange === 'last90days') {
+               startDate = new Date();
+               startDate.setDate(now.getDate() - 90);
+          } else if (filters.dateRange === 'thisyear') {
+               startDate = new Date(now.getFullYear(), 0, 1);
+          }
+          if (startDate) {
+               matchQuery.createdAt = { $gte: startDate };
+          }
+     }
+
+     const total = await LoanRepayment.countDocuments(matchQuery);
+     const repayments = await LoanRepayment.find(matchQuery)
+          .sort({ createdAt: -1 })
+          .skip(skip)
+          .limit(limit)
+          .populate('paymentId')
+          .lean();
+
+     const data = repayments.map((rep: any) => ({
+          _id: rep._id,
+          date: rep.createdAt || rep.date,
+          saleAmount: rep.paymentId ? rep.paymentId.amount / 100 : 0,
+          repaymentAmount: rep.amount,
+          status: 'Processed',
+     }));
+
+     return {
+          meta: {
+               page,
+               limit,
+               total,
+               totalPage: Math.ceil(total / limit),
+          },
+          data,
+     };
+};
+
 export const LoanService = {
      createOrSaveDraft,
      submitApplication,
@@ -648,4 +843,6 @@ export const LoanService = {
      adminGetApplicationsCards,
      adminReviewApplication,
      retryDisbursement,
+     getClientFundingDetails,
+     getClientFundingHistory,
 };

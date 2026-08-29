@@ -75,6 +75,21 @@ const createCheckoutSession = catchAsync(async (req, res) => {
      });
 });
 
+const verifyApiKey = catchAsync(async (req, res) => {
+     const borrower = req.borrower;
+     sendResponse(res, {
+          success: true,
+          statusCode: StatusCodes.OK,
+          message: 'API Key is valid and active.',
+          data: {
+               borrowerId: borrower._id,
+               legalName: borrower.businessDetails?.legalName || '',
+               storeUrl: borrower.businessDetails?.storeUrl || '',
+          },
+     });
+});
+
 export const IntegrationController = {
      createCheckoutSession,
+     verifyApiKey,
 };
