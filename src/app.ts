@@ -123,6 +123,25 @@ app.get('/', (req: Request, res: Response) => {
 });
 
 // ==========================================
+// STRIPE ONBOARDING RESULT PAGES
+// ==========================================
+app.get('/payouts', (req: Request, res: Response) => {
+     const status = req.query.status as string;
+     if (status === 'success') {
+          return res.render('payout-success');
+     }
+     return res.render('payout-failed');
+});
+
+app.get('/payouts/success', (req: Request, res: Response) => {
+     res.render('payout-success');
+});
+
+app.get('/payouts/failed', (req: Request, res: Response) => {
+     res.render('payout-failed');
+});
+
+// ==========================================
 // ERROR HANDLING
 // ==========================================
 app.use(globalErrorHandler);

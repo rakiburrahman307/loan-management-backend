@@ -20,6 +20,17 @@ const handleStripeWebhook = async (req: Request, res: Response): Promise<void> =
      const signature = req.headers['stripe-signature'] as string;
      const webhookSecret = config.stripe.stripe_webhook_secret as string;
 
+     if (!webhookSecret) {
+          logger.error('STRIPE_WEBHOOK_SECRET is not set in environment variables!');
+          res.status(500).json({ error: 'Webhook secret not configured on server.' });
+          return;
+     }
+
+     if (!signature) {
+          res.status(400).json({ error: 'Missing stripe-signature header.' });
+          return;
+     }
+
      let event: Stripe.Event | undefined;
 
      try {

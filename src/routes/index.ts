@@ -12,6 +12,7 @@ import { IntegrationRouter } from '../app/modules/integration/integration.route'
 import { TransactionRouter } from '../app/modules/transaction/transaction.route';
 import { DashboardRouter } from '../app/modules/dashboard/dashboard.route';
 import { SupportTicketRouter } from '../app/modules/support/supportTicket.route';
+import { PayoutRouter } from '../app/modules/payout/payout.route';
 
 const router = express.Router();
 const routes = [
@@ -66,6 +67,10 @@ const routes = [
      {
           path: '/support',
           route: SupportTicketRouter,
+     },
+     {
+          path: '/client-payouts',
+          route: PayoutRouter,
      },
 ];
 

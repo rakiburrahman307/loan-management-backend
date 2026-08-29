@@ -1,7 +1,6 @@
 import { StatusCodes } from 'http-status-codes';
 import AppError from '../../../errors/AppError';
-import config from '../../../config';
-import stripe from '../../../config/stripe';
+import StripeService from '../../builder/StripeService';
 import { StripeConnectedAccount } from './stripeConnectedAccount.model';
 import { Borrower } from '../borrower/borrower.model';
 import { Loan } from '../loan/loan.model';
@@ -13,16 +12,10 @@ const onboardAccount = async (userId: string) => {
      let accountId = connectedAccount?.accountId;
 
      if (!connectedAccount) {
-          // Create Stripe Connected Express Account
+          // Create Stripe Connected Express Account via StripeService
           try {
-               const account = await stripe.accounts.create({
-                    type: 'express',
-                    country: 'GB', // Default to GB for UK-based CRN
-                    capabilities: {
-                         card_payments: { requested: true },
-                         transfers: { requested: true },
-                    },
-               });
+               // { country: 'GB' }
+               const account = await StripeService.createConnectedAccount({ country: 'US' });
                accountId = account.id;
 
                connectedAccount = await StripeConnectedAccount.create({
@@ -41,19 +34,14 @@ const onboardAccount = async (userId: string) => {
           }
      }
 
-     // Generate Stripe Account Link
+     // Generate Stripe Account Link via StripeService
      try {
-          const accountLink = await stripe.accountLinks.create({
-               account: accountId as string,
-               refresh_url: `${config.backend_url}/api/v1/client/payouts/stripe-onboard`,
-               return_url: `${config.frontend_url}/payouts?status=success`,
-               type: 'account_onboarding',
-          });
+          const url = await StripeService.createAccountLink(accountId as string);
 
-          connectedAccount.onboardingUrl = accountLink.url;
+          connectedAccount.onboardingUrl = url;
           await connectedAccount.save();
 
-          return { url: accountLink.url };
+          return { url };
      } catch (error: any) {
           throw new AppError(
                StatusCodes.INTERNAL_SERVER_ERROR,
@@ -73,9 +61,10 @@ const getStatus = async (userId: string) => {
           };
      }
 
-     // Retrieve actual details from Stripe
+     // Retrieve actual details from Stripe via StripeService
      try {
-          const account = await stripe.accounts.retrieve(connectedAccount.accountId);
+          const account = await StripeService.retrieveAccount(connectedAccount.accountId);
+
           connectedAccount.chargesEnabled = account.charges_enabled;
           connectedAccount.payoutsEnabled = account.payouts_enabled;
           connectedAccount.detailsSubmitted = account.details_submitted;
@@ -104,14 +93,14 @@ const getStatus = async (userId: string) => {
                     });
 
                     if (pendingLoan) {
-                         // Attempt automated disbursement
+                         // Attempt automated disbursement via StripeService
                          try {
-                              const transfer = await stripe.transfers.create({
-                                   amount: Math.floor(pendingLoan.principalAmount * 100),
-                                   currency: 'gbp',
-                                   destination: connectedAccount.accountId,
-                                   description: `Automated post-onboarding disbursement for Loan: ${pendingLoan._id}`,
-                              });
+                              const transfer = await StripeService.createTransfer(
+                                   pendingLoan.principalAmount,
+                                   connectedAccount.accountId,
+                                   'gbp',
+                                   `Automated post-onboarding disbursement for Loan: ${pendingLoan._id}`,
+                              );
 
                               pendingLoan.disbursementStatus = 'DISBURSED';
                               pendingLoan.stripeTransferId = transfer.id;
@@ -159,7 +148,25 @@ const getStatus = async (userId: string) => {
      }
 };
 
+/**
+ * Called when the onboarding link expires — generates a fresh link and returns the URL.
+ * No userId needed; looks up by Stripe accountId directly.
+ */
+const refreshLinkByAccountId = async (accountId: string): Promise<string> => {
+     const connectedAccount = await StripeConnectedAccount.findOne({ accountId });
+     if (!connectedAccount) {
+          throw new AppError(StatusCodes.NOT_FOUND, 'Connected account not found');
+     }
+
+     const url = await StripeService.createAccountLink(accountId);
+     connectedAccount.onboardingUrl = url;
+     await connectedAccount.save();
+
+     return url;
+};
+
 export const StripeConnectService = {
      onboardAccount,
      getStatus,
+     refreshLinkByAccountId,
 };

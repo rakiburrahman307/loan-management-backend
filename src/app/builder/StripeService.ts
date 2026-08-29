@@ -1,25 +1,33 @@
 import Stripe from 'stripe';
 import stripe from '../../config/stripe';
+import config from '../../config';
 
 class StripeService {
-     // Create a connected account for the vendor
-     async createConnectedAccount(email: string): Promise<Stripe.Account> {
-          const account = await stripe.accounts.create({
-               type: 'express', // Choose 'express' or 'custom' based on your needs
-               email,
+     // ─── Connected Accounts ────────────────────────────────────────────────────
+
+     /** Create an Express connected account (UK, card_payments + transfers) */
+     async createConnectedAccount(options: { email?: string; country?: string } = {}): Promise<Stripe.Account> {
+          return stripe.accounts.create({
+               type: 'express',
+               country: options.country || 'GB',
+               ...(options.email ? { email: options.email } : {}),
                capabilities: {
-                    transfers: { requested: true },
                     card_payments: { requested: true },
+                    transfers: { requested: true },
                },
           });
-          return account;
      }
 
-     // Generate the account onboarding link for the vendor
+     /** Retrieve a connected account from Stripe */
+     async retrieveAccount(accountId: string): Promise<Stripe.Account> {
+          return stripe.accounts.retrieve(accountId);
+     }
+
+     /** Generate an onboarding account link (language set via Stripe Dashboard → Connect → Branding) */
      async createAccountLink(
           accountId: string,
-          returnUrl: string,
-          refreshUrl: string,
+          returnUrl: string = `${config.backend_url}/payouts?status=success`,
+          refreshUrl: string = `${config.backend_url}/api/v1/payouts/stripe-refresh?accountId=${accountId}`,
      ): Promise<string> {
           const accountLink = await stripe.accountLinks.create({
                account: accountId,
@@ -30,41 +38,91 @@ class StripeService {
           return accountLink.url;
      }
 
-     // Create a checkout session for the customer payment
-     async createCheckoutSession(customerEmail: string, amount: number, orderId: string) {
+     /** Generate a Stripe Express Dashboard login link */
+     async createLoginLink(accountId: string): Promise<string> {
+          const loginLink = await stripe.accounts.createLoginLink(accountId);
+          return loginLink.url;
+     }
+
+     // ─── Payments & Checkout ───────────────────────────────────────────────────
+
+     /** Create a Stripe Checkout session */
+     async createCheckoutSession(
+          customerEmail: string,
+          amount: number,
+          metadata: Record<string, string> = {},
+          successUrl: string = `${config.backend_url}/payouts?status=success`,
+          cancelUrl: string = `${config.backend_url}/payouts/failed`,
+     ) {
           const session = await stripe.checkout.sessions.create({
                payment_method_types: ['card'],
                line_items: [
                     {
                          price_data: {
-                              currency: 'usd',
+                              currency: 'gbp',
                               product_data: {
-                                   name: 'Service Payment',
-                                   description: 'Payment for vendor service',
+                                   name: 'Revenue Financing — Merchant Payment',
                               },
-                              unit_amount: Math.round(Number(amount) * 100), // Amount in cents
+                              unit_amount: Math.round(Number(amount) * 100),
                          },
                          quantity: 1,
                     },
                ],
                mode: 'payment',
-               success_url: 'https://yourapp.com/success',
-               cancel_url: 'https://yourapp.com/cancel',
+               customer_email: customerEmail,
+               success_url: successUrl,
+               cancel_url: cancelUrl,
                payment_intent_data: {},
                metadata: {
                     customer_email: customerEmail,
                     amount: Math.round(Number(amount)).toString(),
-                    orderId: orderId,
+                    ...metadata,
                },
           });
 
           return { sessionId: session.id, url: session.url as string };
      }
 
-     // Generate a login link for the connected user's Express Dashboard
-     async createLoginLink(accountId: string): Promise<string> {
-          const loginLink = await stripe.accounts.createLoginLink(accountId);
-          return loginLink.url;
+     // ─── Transfers ─────────────────────────────────────────────────────────────
+
+     /**
+      * Transfer funds to a connected account (disbursement)
+      * @param amountInMajorUnits - amount in pounds (will be converted to pence)
+      */
+     async createTransfer(
+          amountInMajorUnits: number,
+          destinationAccountId: string,
+          currency: string = 'gbp',
+          description?: string,
+          metadata: Record<string, string> = {},
+     ): Promise<Stripe.Transfer> {
+          return stripe.transfers.create({
+               amount: Math.floor(amountInMajorUnits * 100),
+               currency,
+               destination: destinationAccountId,
+               ...(description ? { description } : {}),
+               ...(Object.keys(metadata).length ? { metadata } : {}),
+          });
+     }
+
+     // ─── Refunds ───────────────────────────────────────────────────────────────
+
+     /** Issue a full or partial refund on a charge or payment intent */
+     async createRefund(
+          paymentIntentId: string,
+          amountInMajorUnits?: number,
+     ): Promise<Stripe.Refund> {
+          return stripe.refunds.create({
+               payment_intent: paymentIntentId,
+               ...(amountInMajorUnits ? { amount: Math.floor(amountInMajorUnits * 100) } : {}),
+          });
+     }
+
+     // ─── Payment Intents ───────────────────────────────────────────────────────
+
+     /** Retrieve a payment intent */
+     async retrievePaymentIntent(paymentIntentId: string): Promise<Stripe.PaymentIntent> {
+          return stripe.paymentIntents.retrieve(paymentIntentId);
      }
 }
 
