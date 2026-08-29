@@ -71,6 +71,16 @@ export const emailWorker = new Worker<EmailJobData>(
                          });
                          break;
 
+                    case 'contactUsAdmin':
+                         emailData = emailTemplate.contactUsAdminTemplate({
+                              name: data?.name,
+                              email: data?.email,
+                              phone: data?.phone,
+                              subject: data?.subject,
+                              message: data?.message,
+                         });
+                         break;
+
                     default:
                          throw new AppError(
                               StatusCodes.BAD_REQUEST,

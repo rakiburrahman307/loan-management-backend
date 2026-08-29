@@ -138,6 +138,34 @@ export class EmailQueueHelper {
           }
      }
 
+     // Send contact message notification to admin
+     static async sendContactNotificationToAdmin(payload: {
+          name: string;
+          email: string;
+          phone?: string;
+          subject: string;
+          message: string;
+     }) {
+          try {
+               const job = await emailQueue.add(
+                    'contact-admin-notification',
+                    {
+                         to: 'support@loan.co.uk',
+                         subject: `New Contact Request: ${payload.subject}`,
+                         template: 'contactUsAdmin',
+                         data: payload,
+                    },
+                    JobOptionsPresets.NORMAL,
+               );
+
+               logger.info(colors.green(`✉️ Support contact notification email queued - Job ID: ${job.id}`));
+               return job.id;
+          } catch (error) {
+               logger.error(colors.red('Failed to queue support contact notification:'), error);
+               throw error;
+          }
+     }
+
      // Send bulk emails
      static async sendBulkEmails(users: Array<{ email: string; name: string; data?: any }>) {
           try {

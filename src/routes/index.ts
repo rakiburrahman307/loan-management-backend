@@ -13,6 +13,7 @@ import { TransactionRouter } from '../app/modules/transaction/transaction.route'
 import { DashboardRouter } from '../app/modules/dashboard/dashboard.route';
 import { SupportTicketRouter } from '../app/modules/support/supportTicket.route';
 import { PayoutRouter } from '../app/modules/payout/payout.route';
+import { ContactUsRouter } from '../app/modules/contactUs/contactUs.route';
 
 const router = express.Router();
 const routes = [
@@ -71,6 +72,10 @@ const routes = [
      {
           path: '/client-payouts',
           route: PayoutRouter,
+     },
+     {
+          path: '/contact-us',
+          route: ContactUsRouter,
      },
 ];
 

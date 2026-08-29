@@ -183,6 +183,36 @@ const blockAccountTemplate = (values: IBlockAccount) => {
      };
      return data;
 };
+const contactUsAdminTemplate = (values: {
+     name: string;
+     email: string;
+     phone?: string;
+     subject: string;
+     message: string;
+}) => {
+     const data = {
+          to: 'support@loan.co.uk',
+          subject: `New Contact Request: ${values.subject}`,
+          html: `<body style="font-family: Arial, sans-serif; background-color: #f9f9f9; margin: 50px; padding: 20px; color: #555;">      
+      <div style="width: 100%; max-width: 600px; margin: 0 auto; padding: 20px; background-color: #fff; border-radius: 10px; box-shadow: 0 0 10px rgba(0,0,0,0.1);">
+          <h2 style="color: #277E16; font-size: 24px; margin-bottom: 20px; text-align: center;">New Contact Request!</h2>
+          
+          <div style="padding: 15px; background-color: #f4f4f4; border-radius: 8px; margin: 20px 0;">
+              <p style="color: #333; font-size: 16px; font-weight: bold;">User Details:</p>
+              <p><strong>Name:</strong> ${values.name}</p>
+              <p><strong>Email:</strong> ${values.email}</p>
+              <p><strong>Phone:</strong> ${values.phone || 'N/A'}</p>
+              <p><strong>Subject:</strong> ${values.subject}</p>
+              <br/>
+              <p><strong>Message:</strong></p>
+              <p>${values.message}</p>
+          </div>
+      </div>
+  </body>`,
+     };
+     return data;
+};
+
 export const emailTemplate = {
      createAccount,
      resetPassword,
@@ -191,4 +221,5 @@ export const emailTemplate = {
      contact,
      helpReplyTemplate,
      blockAccountTemplate,
+     contactUsAdminTemplate,
 };
