@@ -103,6 +103,11 @@ const updateProfileToDB = async (
           unlinkFile(isExistUser.image);
      }
 
+     if ((payload as any).contact) {
+          payload.phone = (payload as any).contact;
+          delete (payload as any).contact;
+     }
+
      const updateDoc = await User.findOneAndUpdate({ _id: id }, payload, {
           new: true,
      });

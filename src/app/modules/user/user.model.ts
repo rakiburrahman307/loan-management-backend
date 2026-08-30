@@ -36,6 +36,14 @@ const userSchema = new Schema<IUser, UserModel>(
                type: String,
                default: '',
           },
+          phone: {
+               type: String,
+               default: '',
+          },
+          address: {
+               type: String,
+               default: '',
+          },
           status: {
                type: String,
                enum: ['active', 'blocked'],
@@ -129,7 +137,7 @@ userSchema.statics.isExistUserByEmail = async (email: string) => {
      return await User.findOne({ email });
 };
 userSchema.statics.isExistUserByPhone = async (contact: string) => {
-     return await User.findOne({ contact });
+     return await User.findOne({ phone: contact });
 };
 // Password Matching
 userSchema.statics.isMatchPassword = async (

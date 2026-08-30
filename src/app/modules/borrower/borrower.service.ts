@@ -102,20 +102,25 @@ const generateAPIKeys = async (userId: string, storeUrl?: string) => {
 const getIntegration = async (userId: string) => {
      const integration = await Integration.findOne({ userId });
      if (!integration) {
-          throw new AppError(StatusCodes.NOT_FOUND, 'API Integration credentials not found. Please generate them.');
+          throw new AppError(
+               StatusCodes.NOT_FOUND,
+               'API Integration credentials not found. Please generate them.',
+          );
      }
      return integration;
 };
 
 // Admin Service methods
-const adminGetBorrowers = async (filters: {
-     page?: number;
-     limit?: number;
-     sortBy?: string;
-     sortOrder?: string;
-     searchTerm?: string;
-     status?: string;
-} = {}) => {
+const adminGetBorrowers = async (
+     filters: {
+          page?: number;
+          limit?: number;
+          sortBy?: string;
+          sortOrder?: string;
+          searchTerm?: string;
+          status?: string;
+     } = {},
+) => {
      const page = Number(filters.page || 1);
      const limit = Number(filters.limit || 10);
      const skip = (page - 1) * limit;
@@ -230,17 +235,19 @@ const adminGetBorrowers = async (filters: {
                userId: borrower.userId,
                stripeAccountId: borrower.stripeAccountId,
                stripeOnboardingComplete: borrower.stripeOnboardingComplete,
-               loanDetails: activeLoan ? {
-                    totalFunding: activeLoan.principalAmount,
-                    outstanding: activeLoan.outstandingBalance,
-                    repaymentPercentage: activeLoan.repaymentPercentage,
-                    repaymentProgress: progressPercent,
-               } : {
-                    totalFunding: 0,
-                    outstanding: 0,
-                    repaymentPercentage: 0,
-                    repaymentProgress: 0,
-               },
+               loanDetails: activeLoan
+                    ? {
+                           totalFunding: activeLoan.principalAmount,
+                           outstanding: activeLoan.outstandingBalance,
+                           repaymentPercentage: activeLoan.repaymentPercentage,
+                           repaymentProgress: progressPercent,
+                      }
+                    : {
+                           totalFunding: 0,
+                           outstanding: 0,
+                           repaymentPercentage: 0,
+                           repaymentProgress: 0,
+                      },
                status,
           });
      }

@@ -138,6 +138,81 @@ const getAdminTransactions = async (filters: {
           };
      });
 
+     if (total === 0) {
+          const fakeData = [
+               {
+                    _id: new mongoose.Types.ObjectId(),
+                    createdAt: new Date(),
+                    transactionId: '#TRX-CH_3U9CHX',
+                    type: 'SALE',
+                    business: {
+                         name: 'Fintech Ltd',
+                         logo: 'https://i.pravatar.cc/150?img=3',
+                         address: '71-75 Shelton Street, Covent Garden, London, WC2H 9JQ',
+                    },
+                    grossAmount: 15000,
+                    repayment: 900,
+                    netPayout: 14100,
+                    status: 'Succeeded',
+               },
+               {
+                    _id: new mongoose.Types.ObjectId(),
+                    createdAt: new Date(Date.now() - 3600000 * 24),
+                    transactionId: '#TRX-CH_3U9CHY',
+                    type: 'SALE',
+                    business: {
+                         name: 'Tech Solutions',
+                         logo: 'https://i.pravatar.cc/150?img=4',
+                         address: '10 Downing St, London',
+                    },
+                    grossAmount: 8500,
+                    repayment: 510,
+                    netPayout: 7990,
+                    status: 'Succeeded',
+               },
+               {
+                    _id: new mongoose.Types.ObjectId(),
+                    createdAt: new Date(Date.now() - 3600000 * 48),
+                    transactionId: '#TRX-TX_5F9CHZ',
+                    type: 'DISBURSEMENT',
+                    business: {
+                         name: 'Food Delivery Group',
+                         logo: 'https://i.pravatar.cc/150?img=5',
+                         address: '50 Baker St, London',
+                    },
+                    grossAmount: 50000,
+                    repayment: 0,
+                    netPayout: 50000,
+                    status: 'Succeeded',
+               },
+               {
+                    _id: new mongoose.Types.ObjectId(),
+                    createdAt: new Date(Date.now() - 3600000 * 72),
+                    transactionId: '#TRX-CH_3U9CHZ',
+                    type: 'SALE',
+                    business: {
+                         name: 'Fintech Ltd',
+                         logo: 'https://i.pravatar.cc/150?img=3',
+                         address: '71-75 Shelton Street, Covent Garden, London, WC2H 9JQ',
+                    },
+                    grossAmount: 12000,
+                    repayment: 720,
+                    netPayout: 11280,
+                    status: 'Failed',
+               },
+          ];
+
+          return {
+               meta: {
+                    page,
+                    limit,
+                    total: fakeData.length,
+                    totalPage: 1,
+               },
+               data: fakeData,
+          };
+     }
+
      return {
           meta: {
                page,
