@@ -63,7 +63,7 @@ const updateProfile = async (userId: string, payload: any) => {
      return getProfile(userId);
 };
 
-const generateAPIKeys = async (userId: string, storeUrl?: string, webhookUrl?: string) => {
+const generateAPIKeys = async (userId: string) => {
      // Generate secure API key and Webhook Secret
      const rawApiKey = 'lm_live_' + crypto.randomBytes(24).toString('hex');
      const hashedApiKey = crypto.createHash('sha256').update(rawApiKey).digest('hex');
@@ -75,12 +75,6 @@ const generateAPIKeys = async (userId: string, storeUrl?: string, webhookUrl?: s
           integration.apiKey = hashedApiKey;
           integration.apiKeyPreview = apiKeyPreview;
           integration.webhookSecret = webhookSecret;
-          if (storeUrl) {
-               integration.storeUrl = storeUrl;
-          }
-          if (webhookUrl) {
-               integration.webhookUrl = webhookUrl;
-          }
           await integration.save();
      } else {
           integration = await Integration.create({
@@ -88,8 +82,7 @@ const generateAPIKeys = async (userId: string, storeUrl?: string, webhookUrl?: s
                apiKey: hashedApiKey,
                apiKeyPreview,
                webhookSecret,
-               storeUrl: storeUrl || '',
-               webhookUrl: webhookUrl || '',
+               webhookUrl: '',
                isActive: true,
           });
      }
@@ -99,7 +92,6 @@ const generateAPIKeys = async (userId: string, storeUrl?: string, webhookUrl?: s
           apiKey: rawApiKey,
           apiKeyPreview,
           webhookSecret,
-          storeUrl: integration.storeUrl,
           webhookUrl: integration.webhookUrl,
      };
 };
@@ -112,6 +104,29 @@ const getIntegration = async (userId: string) => {
                'API Integration credentials not found. Please generate them.',
           );
      }
+     
+     const integrationObj = integration.toObject();
+     if (integrationObj.webhookUrl === undefined) {
+          integrationObj.webhookUrl = '';
+     }
+     
+     return integrationObj;
+};
+
+const updateIntegration = async (
+     userId: string,
+     payload: { webhookUrl?: string },
+) => {
+     let integration = await Integration.findOne({ userId });
+     if (!integration) {
+          throw new AppError(StatusCodes.NOT_FOUND, 'API Integration credentials not found.');
+     }
+
+     if (payload.webhookUrl !== undefined) {
+          integration.webhookUrl = payload.webhookUrl;
+     }
+     await integration.save();
+
      return integration;
 };
 
@@ -479,6 +494,7 @@ export const BorrowerService = {
      updateProfile,
      generateAPIKeys,
      getIntegration,
+     updateIntegration,
      adminGetBorrowers,
      adminGetBorrowersCards,
      adminGetBorrowerById,

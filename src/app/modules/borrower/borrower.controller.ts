@@ -30,8 +30,7 @@ const updateProfile = catchAsync(async (req, res) => {
 
 const generateAPIKeys = catchAsync(async (req, res) => {
      const userId = req.user.id;
-     const { storeUrl, webhookUrl } = req.body;
-     const result = await BorrowerService.generateAPIKeys(userId, storeUrl, webhookUrl);
+     const result = await BorrowerService.generateAPIKeys(userId);
      sendResponse(res, {
           success: true,
           statusCode: StatusCodes.CREATED,
@@ -47,6 +46,18 @@ const getIntegration = catchAsync(async (req, res) => {
           success: true,
           statusCode: StatusCodes.OK,
           message: 'API Integration details retrieved successfully',
+          data: result,
+     });
+});
+
+const updateIntegration = catchAsync(async (req, res) => {
+     const userId = req.user.id;
+     const { webhookUrl } = req.body;
+     const result = await BorrowerService.updateIntegration(userId, { webhookUrl });
+     sendResponse(res, {
+          success: true,
+          statusCode: StatusCodes.OK,
+          message: 'API Integration details updated successfully',
           data: result,
      });
 });
@@ -91,6 +102,7 @@ export const BorrowerController = {
      updateProfile,
      generateAPIKeys,
      getIntegration,
+     updateIntegration,
      adminGetBorrowers,
      adminGetBorrowersCards,
      adminGetBorrowerById,

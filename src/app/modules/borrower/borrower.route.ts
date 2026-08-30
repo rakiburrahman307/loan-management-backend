@@ -15,6 +15,11 @@ router.post(
      BorrowerController.generateAPIKeys,
 );
 router.get('/integration', auth(...ROLE_GROUPS.USERS), BorrowerController.getIntegration);
+router.put(
+     '/integration/update',
+     auth(...ROLE_GROUPS.USERS),
+     BorrowerController.updateIntegration,
+);
 
 // Admin routes
 router.get('/admin/borrowers', auth(...ROLE_GROUPS.ADMINS), BorrowerController.adminGetBorrowers);

@@ -14,8 +14,7 @@ export const dispatchMerchantWebhook = async (
                return;
           }
 
-          const targetUrl = integration.webhookUrl || 
-               (integration.storeUrl ? `${integration.storeUrl.replace(/\/$/, '')}/wp-json/lm/v1/webhook` : '');
+          const targetUrl = integration.webhookUrl;
 
           if (!targetUrl) {
                logger.warn(`No webhook target URL configured for borrower user ${borrowerUserId}. Webhook dispatch skipped.`);
