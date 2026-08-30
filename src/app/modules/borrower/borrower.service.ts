@@ -63,7 +63,7 @@ const updateProfile = async (userId: string, payload: any) => {
      return getProfile(userId);
 };
 
-const generateAPIKeys = async (userId: string, storeUrl?: string) => {
+const generateAPIKeys = async (userId: string, storeUrl?: string, webhookUrl?: string) => {
      // Generate secure API key and Webhook Secret
      const rawApiKey = 'lm_live_' + crypto.randomBytes(24).toString('hex');
      const hashedApiKey = crypto.createHash('sha256').update(rawApiKey).digest('hex');
@@ -78,6 +78,9 @@ const generateAPIKeys = async (userId: string, storeUrl?: string) => {
           if (storeUrl) {
                integration.storeUrl = storeUrl;
           }
+          if (webhookUrl) {
+               integration.webhookUrl = webhookUrl;
+          }
           await integration.save();
      } else {
           integration = await Integration.create({
@@ -86,6 +89,7 @@ const generateAPIKeys = async (userId: string, storeUrl?: string) => {
                apiKeyPreview,
                webhookSecret,
                storeUrl: storeUrl || '',
+               webhookUrl: webhookUrl || '',
                isActive: true,
           });
      }
@@ -96,6 +100,7 @@ const generateAPIKeys = async (userId: string, storeUrl?: string) => {
           apiKeyPreview,
           webhookSecret,
           storeUrl: integration.storeUrl,
+          webhookUrl: integration.webhookUrl,
      };
 };
 

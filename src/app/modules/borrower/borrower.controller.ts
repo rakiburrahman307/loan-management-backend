@@ -30,8 +30,8 @@ const updateProfile = catchAsync(async (req, res) => {
 
 const generateAPIKeys = catchAsync(async (req, res) => {
      const userId = req.user.id;
-     const { storeUrl } = req.body;
-     const result = await BorrowerService.generateAPIKeys(userId, storeUrl);
+     const { storeUrl, webhookUrl } = req.body;
+     const result = await BorrowerService.generateAPIKeys(userId, storeUrl, webhookUrl);
      sendResponse(res, {
           success: true,
           statusCode: StatusCodes.CREATED,

@@ -6,6 +6,7 @@ export type IIntegration = {
      apiKeyPreview: string;
      webhookSecret: string;
      storeUrl?: string;
+     webhookUrl?: string;
      isActive: boolean;
 };
 
@@ -21,6 +22,7 @@ const integrationSchema = new Schema<IIntegration>(
           apiKeyPreview: { type: String, required: true },
           webhookSecret: { type: String, required: true },
           storeUrl: { type: String, default: '' },
+          webhookUrl: { type: String, default: '' },
           isActive: { type: Boolean, default: true },
      },
      { timestamps: true },

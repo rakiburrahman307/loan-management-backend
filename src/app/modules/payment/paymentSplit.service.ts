@@ -8,6 +8,7 @@ import { Loan } from '../loan/loan.model';
 import { Transaction } from '../transaction/transaction.model';
 import { Commission } from '../transaction/commission.model';
 import { LoanRepayment } from '../transaction/loanRepayment.model';
+import { dispatchMerchantWebhook } from '../../../helpers/merchantWebhookHelper';
 
 const PROCESS_COMMISSION_RATE = 10; // Default 10% platform commission
 
@@ -191,6 +192,17 @@ const handlePaymentSuccess = async (checkoutSessionId: string, paymentIntentId: 
                await session.commitTransaction();
                await session.endSession();
           }
+
+          // Dispatch B2B webhook callback to merchant store asynchronously
+          dispatchMerchantWebhook(borrower.userId.toString(), 'payment.succeeded', {
+               checkoutSessionId,
+               paymentIntentId,
+               amount: totalAmountMajor,
+               currency: payment.currency,
+               status: 'COMPLETED',
+               customerEmail: customerEmail || '',
+               metadata: payment.metadata || {},
+          }).catch((err) => console.error('Failed to dispatch B2B merchant webhook:', err));
 
           return payment;
      } catch (error) {
