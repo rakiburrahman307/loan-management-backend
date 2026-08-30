@@ -1,21 +1,13 @@
 import express from 'express';
-import { USER_ROLES } from '../../../enums/user';
+import { ROLE_GROUPS } from '../../../enums/user';
 import { NotificationController } from './notification.controller';
 import auth from '../../middleware/auth';
 const router = express.Router();
 
-router.get('/', auth(USER_ROLES.USER), NotificationController.getNotificationFromDB);
-router.get(
-     '/admin',
-     auth(USER_ROLES.ADMIN, USER_ROLES.SUPER_ADMIN),
-     NotificationController.adminNotificationFromDB,
-);
-router.patch('/', auth(USER_ROLES.USER), NotificationController.readNotification);
-router.patch('/admin', auth(USER_ROLES.USER), NotificationController.adminReadNotification);
-router.patch(
-     '/send-notifications',
-     auth(USER_ROLES.ADMIN, USER_ROLES.SUPER_ADMIN),
-     NotificationController.sendAdminPushNotification,
-);
+router.get('/', auth(...ROLE_GROUPS.ALL), NotificationController.getNotificationFromDB);
+router.patch('/', auth(...ROLE_GROUPS.ALL), NotificationController.readAllNotification);
+router.patch('/read/:id', auth(...ROLE_GROUPS.ALL), NotificationController.readNotification);
+router.delete('/', auth(...ROLE_GROUPS.ALL), NotificationController.deleteAllNotifications);
+router.delete('/:id', auth(...ROLE_GROUPS.ALL), NotificationController.deleteNotification);
 
 export const NotificationRoutes = router;

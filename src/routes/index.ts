@@ -1,7 +1,7 @@
 import express from 'express';
 import { UserRouter } from '../app/modules/user/user.route';
 import { AuthRouter } from '../app/modules/auth/auth.route';
-import SettingsRouter from '../app/modules/settings/settings.route';
+import { SettingsRoute } from '../app/modules/settings/settings.route';
 import { SessionRouter } from '../app/modules/session/session.route';
 import { UserManagementsRouter } from '../app/modules/userManagements/userManagements.router';
 import { FaqRoutes } from '../app/modules/faq/faq.route';
@@ -14,6 +14,7 @@ import { DashboardRouter } from '../app/modules/dashboard/dashboard.route';
 import { SupportTicketRouter } from '../app/modules/support/supportTicket.route';
 import { PayoutRouter } from '../app/modules/payout/payout.route';
 import { ContactUsRouter } from '../app/modules/contactUs/contactUs.route';
+import { NotificationRoutes } from '../app/modules/notification/notification.routes';
 
 const router = express.Router();
 const routes = [
@@ -27,7 +28,7 @@ const routes = [
      },
      {
           path: '/settings',
-          route: SettingsRouter,
+          route: SettingsRoute,
      },
      {
           path: '/sessions',
@@ -76,6 +77,10 @@ const routes = [
      {
           path: '/contact-us',
           route: ContactUsRouter,
+     },
+     {
+          path: '/notifications',
+          route: NotificationRoutes,
      },
 ];
 

@@ -1,21 +1,28 @@
 import { model, Schema } from 'mongoose';
 import { INotification } from './notification.interface';
+import { USER_ROLES } from '../../../enums/user';
 
-enum NotificationType {
+export enum NotificationType {
      ADMIN = 'ADMIN',
      SYSTEM = 'SYSTEM',
      PAYMENT = 'PAYMENT',
+     REPAYMENT = 'REPAYMENT',
+     PAYOUT = 'PAYOUT',
+     LOAN = 'LOAN',
+     APPLICATION = 'APPLICATION',
      MESSAGE = 'MESSAGE',
-     REFUND = 'REFUND',
+     SUPPORT = 'SUPPORT',
      ALERT = 'ALERT',
-     ORDER = 'ORDER',
-     DELIVERY = 'DELIVERY',
-     CANCELLED = 'CANCELLED',
 }
 
-enum NotificationScreen {
+export enum NotificationScreen {
      DASHBOARD = 'DASHBOARD',
+     LOAN_DETAILS = 'LOAN_DETAILS',
+     APPLICATION_DETAILS = 'APPLICATION_DETAILS',
+     CHAT = 'CHAT',
      PAYMENT_HISTORY = 'PAYMENT_HISTORY',
+     PAYOUT_DETAILS = 'PAYOUT_DETAILS',
+     SUPPORT_DETAILS = 'SUPPORT_DETAILS',
      PROFILE = 'PROFILE',
 }
 
@@ -43,15 +50,13 @@ const notificationSchema = new Schema<INotification>(
           referenceModel: {
                type: String,
                enum: [
-                    'PAYMENT',
-                    'ORDER',
-                    'MESSAGE',
-                    'REFUND',
-                    'ALERT',
-                    'DELIVERY',
-                    'CANCELLED',
-                    'USER',
                     'User',
+                    'Borrower',
+                    'Loan',
+                    'LoanApplication',
+                    'Payment',
+                    'LoanRepayment',
+                    'SupportTicket',
                ],
                required: false,
           },
@@ -68,6 +73,16 @@ const notificationSchema = new Schema<INotification>(
           type: {
                type: String,
                enum: Object.values(NotificationType),
+               required: false,
+          },
+          receiverRole: {
+               type: String,
+               enum: Object.values(USER_ROLES),
+               required: false,
+               index: true,
+          },
+          additionalData: {
+               type: Schema.Types.Mixed,
                required: false,
           },
      },

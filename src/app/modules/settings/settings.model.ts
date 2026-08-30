@@ -7,18 +7,11 @@ const settingsSchema = new Schema<ISettings>(
                type: String,
                default: '',
           },
-          aboutUs: {
-               type: String,
-               default: '',
-          },
-          support: {
-               type: String,
-               default: '',
-          },
           termsOfService: {
                type: String,
                default: '',
           },
+        
      },
      { timestamps: true },
 );
