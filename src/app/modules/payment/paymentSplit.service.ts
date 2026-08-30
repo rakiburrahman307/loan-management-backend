@@ -71,11 +71,17 @@ const handlePaymentSuccess = async (checkoutSessionId: string, paymentIntentId: 
           let stripeTransferId = '';
           if (payoutAmount > 0 && borrower.stripeAccountId) {
                try {
+                    // Retrieve Payment Intent to get the latest charge ID (starts with ch_ instead of pi_)
+                    const paymentIntent = await stripe.paymentIntents.retrieve(paymentIntentId);
+                    const chargeId = typeof paymentIntent.latest_charge === 'string' 
+                         ? paymentIntent.latest_charge 
+                         : paymentIntentId;
+
                     const transfer = await stripe.transfers.create({
                          amount: payoutAmount,
                          currency: payment.currency,
                          destination: borrower.stripeAccountId,
-                         source_transaction: paymentIntentId,
+                         source_transaction: chargeId,
                          description: `Payout for sale checkout session: ${checkoutSessionId}`,
                     });
                     stripeTransferId = transfer.id;
@@ -198,6 +204,9 @@ const handlePaymentSuccess = async (checkoutSessionId: string, paymentIntentId: 
                checkoutSessionId,
                paymentIntentId,
                amount: totalAmountMajor,
+               payoutAmount: payoutAmountMajor,
+               commissionAmount: commissionAmountMajor,
+               repaymentAmount: repaymentAmountMajor,
                currency: payment.currency,
                status: 'COMPLETED',
                customerEmail: customerEmail || '',

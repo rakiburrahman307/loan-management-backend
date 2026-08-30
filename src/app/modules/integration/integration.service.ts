@@ -28,7 +28,7 @@ const createCheckoutSession = async (
      if (!borrower.stripeAccountId || !borrower.stripeOnboardingComplete) {
           throw new AppError(
                StatusCodes.BAD_REQUEST,
-               'Store payments cannot be processed. Stripe connected account onboarding is incomplete.',
+               'Stripe Connected Account onboarding is incomplete. Please complete your Stripe payout setup in the Merchant Dashboard (Settings > Payouts) before processing store checkout payments.',
           );
      }
 
