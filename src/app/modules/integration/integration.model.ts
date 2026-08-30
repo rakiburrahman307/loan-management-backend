@@ -6,6 +6,7 @@ export type IIntegration = {
      apiKeyPreview: string;
      webhookSecret: string;
      webhookUrl?: string;
+     webhookStatus: 'CONNECTED' | 'DISCONNECTED' | 'NOT_CONFIGURED';
      isActive: boolean;
 };
 
@@ -21,6 +22,11 @@ const integrationSchema = new Schema<IIntegration>(
           apiKeyPreview: { type: String, required: true },
           webhookSecret: { type: String, required: true },
           webhookUrl: { type: String, default: '' },
+          webhookStatus: {
+               type: String,
+               enum: ['CONNECTED', 'DISCONNECTED', 'NOT_CONFIGURED'],
+               default: 'NOT_CONFIGURED',
+          },
           isActive: { type: Boolean, default: true },
      },
      { timestamps: true },

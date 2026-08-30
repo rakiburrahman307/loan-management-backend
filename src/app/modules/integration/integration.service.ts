@@ -14,7 +14,7 @@ const createCheckoutSession = async (
           metadata?: Record<string, any>;
      },
 ) => {
-     const { amount, currency = 'gbp', customerEmail, successUrl, cancelUrl, metadata = {} } = payload;
+     const { amount, currency = 'usd', customerEmail, successUrl, cancelUrl, metadata = {} } = payload;
 
      if (!amount || typeof amount !== 'number' || amount <= 0) {
           throw new AppError(StatusCodes.BAD_REQUEST, 'Valid amount is required.');

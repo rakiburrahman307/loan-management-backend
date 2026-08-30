@@ -46,10 +46,21 @@ export const dispatchMerchantWebhook = async (
 
           if (!response.ok) {
                logger.error(`B2B Webhook dispatch failed. Status: ${response.status} ${response.statusText}`);
+               integration.webhookStatus = 'DISCONNECTED';
+               await integration.save();
           } else {
                logger.info(`B2B Webhook '${event}' successfully delivered to merchant store.`);
+               if (integration.webhookStatus !== 'CONNECTED') {
+                    integration.webhookStatus = 'CONNECTED';
+                    await integration.save();
+               }
           }
      } catch (error: any) {
           logger.error('Failed to dispatch merchant webhook:', error);
+          try {
+               await Integration.findOneAndUpdate({ userId: borrowerUserId }, { webhookStatus: 'DISCONNECTED' });
+          } catch (updateErr) {
+               logger.error('Failed to set integration webhookStatus to DISCONNECTED on error:', updateErr);
+          }
      }
 };

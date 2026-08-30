@@ -83,6 +83,7 @@ const generateAPIKeys = async (userId: string) => {
                apiKeyPreview,
                webhookSecret,
                webhookUrl: '',
+               webhookStatus: 'NOT_CONFIGURED',
                isActive: true,
           });
      }
@@ -93,6 +94,7 @@ const generateAPIKeys = async (userId: string) => {
           apiKeyPreview,
           webhookSecret,
           webhookUrl: integration.webhookUrl,
+          webhookStatus: integration.webhookStatus,
      };
 };
 
@@ -109,6 +111,9 @@ const getIntegration = async (userId: string) => {
      if (integrationObj.webhookUrl === undefined) {
           integrationObj.webhookUrl = '';
      }
+     if (integrationObj.webhookStatus === undefined) {
+          integrationObj.webhookStatus = integrationObj.webhookUrl ? 'CONNECTED' : 'NOT_CONFIGURED';
+     }
      
      return integrationObj;
 };
@@ -123,7 +128,49 @@ const updateIntegration = async (
      }
 
      if (payload.webhookUrl !== undefined) {
-          integration.webhookUrl = payload.webhookUrl;
+          const newUrl = payload.webhookUrl.trim();
+          
+          if (newUrl) {
+               // Perform Ping validation request to verify connection status!
+               try {
+                    const pingBody = {
+                         event: 'webhook.ping',
+                         timestamp: new Date(),
+                         data: { ping: true },
+                    };
+                    const signature = crypto
+                         .createHmac('sha256', integration.webhookSecret)
+                         .update(JSON.stringify(pingBody))
+                         .digest('hex');
+
+                    const response = await fetch(newUrl, {
+                         method: 'POST',
+                         headers: {
+                              'Content-Type': 'application/json',
+                              'x-lm-signature': signature,
+                         },
+                         body: JSON.stringify(pingBody),
+                         signal: AbortSignal.timeout(5000), // Timeout after 5 seconds
+                    });
+
+                    if (!response.ok) {
+                         throw new AppError(
+                              StatusCodes.BAD_REQUEST,
+                              `Webhook URL is unreachable. Server responded with status ${response.status}.`,
+                         );
+                    }
+               } catch (err: any) {
+                    throw new AppError(
+                         StatusCodes.BAD_REQUEST,
+                         `Failed to connect to Webhook URL: ${err.message || 'Host unreachable'}.`,
+                    );
+               }
+               integration.webhookStatus = 'CONNECTED';
+          } else {
+               integration.webhookStatus = 'NOT_CONFIGURED';
+          }
+          
+          integration.webhookUrl = newUrl;
      }
      await integration.save();
 
