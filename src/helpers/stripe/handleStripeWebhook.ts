@@ -7,13 +7,12 @@ import config from '../../config';
 import stripe from '../../config/stripe';
 import AppError from '../../errors/AppError';
 import { WebhookEvent } from '../../app/modules/stripeConnect/webhookEvent.model';
-import { StripeConnectedAccount } from '../../app/modules/stripeConnect/stripeConnectedAccount.model';
-import { Borrower } from '../../app/modules/borrower/borrower.model';
-import { PaymentSplitService } from '../../app/modules/payment/paymentSplit.service';
-import { Transaction } from '../../app/modules/transaction/transaction.model';
-import { Refund } from '../../app/modules/transaction/refund.model';
-import { Chargeback } from '../../app/modules/transaction/chargeback.model';
-import { Payment } from '../../app/modules/payment/payment.model';
+import {
+     handleAccountUpdated,
+     handleCheckoutSessionCompleted,
+     handleChargeRefunded,
+     handleChargeDisputeCreated,
+} from './handlers';
 
 const handleStripeWebhook = async (req: Request, res: Response): Promise<void> => {
      // Extract Stripe signature and webhook secret
@@ -67,105 +66,21 @@ const handleStripeWebhook = async (req: Request, res: Response): Promise<void> =
 
      try {
           switch (eventType) {
-               case 'account.updated': {
-                    const account = data as Stripe.Account;
-                    const connectedAccount = await StripeConnectedAccount.findOne({ accountId: account.id });
-                    if (connectedAccount) {
-                         connectedAccount.chargesEnabled = account.charges_enabled;
-                         connectedAccount.payoutsEnabled = account.payouts_enabled;
-                         connectedAccount.detailsSubmitted = account.details_submitted;
-                         if (account.charges_enabled) {
-                              connectedAccount.status = 'ACTIVE';
-                         }
-                         await connectedAccount.save();
-
-                         // Sync Borrower profile too
-                         await Borrower.findOneAndUpdate(
-                              { userId: connectedAccount.userId },
-                              {
-                                   stripeAccountId: account.id,
-                                   stripeOnboardingComplete: account.charges_enabled,
-                              },
-                         );
-                    }
+               case 'account.updated':
+                    await handleAccountUpdated(data as Stripe.Account);
                     break;
-               }
 
-               case 'checkout.session.completed': {
-                    const session = data as Stripe.Checkout.Session;
-                    if (session.payment_status === 'paid') {
-                         const checkoutSessionId = session.id;
-                         const paymentIntentId = session.payment_intent as string;
-                         const totalAmount = session.amount_total || 0;
-                         const customerEmail = session.customer_details?.email || undefined;
-
-                         await PaymentSplitService.handlePaymentSuccess(
-                              checkoutSessionId,
-                              paymentIntentId,
-                              totalAmount,
-                              customerEmail,
-                         );
-                    }
+               case 'checkout.session.completed':
+                    await handleCheckoutSessionCompleted(data as Stripe.Checkout.Session);
                     break;
-               }
 
-               case 'charge.refunded': {
-                    const charge = data as Stripe.Charge;
-                    const paymentIntentId = charge.payment_intent as string;
-                    const payment = await Payment.findOne({ paymentIntentId });
-
-                    if (payment) {
-                         payment.status = 'REFUNDED';
-                         await payment.save();
-
-                         const refundRecord = await Refund.create({
-                              paymentId: payment._id,
-                              amount: charge.amount_refunded / 100, // to major units
-                              reason: charge.failure_message || 'Customer Refund',
-                              status: 'SUCCESS',
-                              stripeRefundId: charge.refunds?.data[0]?.id || '',
-                         });
-
-                         await Transaction.create({
-                              borrowerId: payment.borrowerId,
-                              paymentId: payment._id,
-                              type: 'REFUND',
-                              amount: charge.amount_refunded / 100,
-                              currency: payment.currency,
-                              status: 'SUCCESS',
-                              stripeTransferId: charge.refunds?.data[0]?.id || '',
-                              description: `Refund processed for payment: ${paymentIntentId}`,
-                         });
-                    }
+               case 'charge.refunded':
+                    await handleChargeRefunded(data as Stripe.Charge);
                     break;
-               }
 
-               case 'charge.dispute.created': {
-                    const dispute = data as Stripe.Dispute;
-                    const paymentIntentId = dispute.charge as string;
-                    const payment = await Payment.findOne({ paymentIntentId });
-
-                    if (payment) {
-                         const chargeback = await Chargeback.create({
-                              paymentId: payment._id,
-                              amount: dispute.amount / 100,
-                              reason: dispute.reason,
-                              status: 'PENDING',
-                              stripeDisputeId: dispute.id,
-                         });
-
-                         await Transaction.create({
-                              borrowerId: payment.borrowerId,
-                              paymentId: payment._id,
-                              type: 'CHARGEBACK',
-                              amount: dispute.amount / 100,
-                              currency: payment.currency,
-                              status: 'PENDING',
-                              description: `Dispute/Chargeback created by customer. Reason: ${dispute.reason}`,
-                         });
-                    }
+               case 'charge.dispute.created':
+                    await handleChargeDisputeCreated(data as Stripe.Dispute);
                     break;
-               }
 
                default:
                     logger.warn(colors.bgGreen.bold(`Unhandled event type: ${eventType}`));

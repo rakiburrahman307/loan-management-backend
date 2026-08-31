@@ -284,33 +284,6 @@ export class NotificationQueueHelper {
           }
      }
 
-     // Notification with reference (Order/Payment)
-     static async sendOrderNotification(
-          userId: string,
-          message: string,
-          orderId: string,
-          title?: string,
-     ) {
-          try {
-               const job = await notificationQueue.add('order-notification', {
-                    userId,
-                    title,
-                    message,
-                    type: 'ORDER',
-                    reference: orderId,
-                    referenceModel: 'ORDER',
-                    screen: 'DASHBOARD',
-                    channels: ['in-app', 'socket', 'push'],
-               });
-
-               logger.info(colors.green(`📦 Order notification queued - Job ID: ${job.id}`));
-               return job.id;
-          } catch (error) {
-               logger.error(colors.red('Failed to queue order notification:'), error);
-               throw error;
-          }
-     }
-
      // Payment notification
      static async sendPaymentNotification(
           userId: string,

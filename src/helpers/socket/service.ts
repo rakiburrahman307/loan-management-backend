@@ -149,12 +149,6 @@ class SocketService {
      chatCleared(userId: string, chatId: string, clearTime: Date) {
           this.emit('chatCleared', userId, { chatId, clearedAt: clearTime });
      }
-
-     newRideRequest(nearbyDriverIds: string[], tripData: unknown) {
-          nearbyDriverIds.forEach((driverId) => {
-               this.emit('new_ride_request', driverId, tripData);
-          });
-     }
 }
 
 export const socketService = new SocketService();

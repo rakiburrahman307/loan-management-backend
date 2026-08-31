@@ -9,7 +9,7 @@ import { Transaction } from '../transaction/transaction.model';
 import { Commission } from '../transaction/commission.model';
 import { LoanRepayment } from '../transaction/loanRepayment.model';
 import { dispatchMerchantWebhook } from '../../../helpers/merchantWebhookHelper';
-import { sendNotifications } from '../../../helpers/notificationsHelper';
+import { NotificationQueueHelper } from '../../../helpers/bullMQ/bullHelper';
 
 const PROCESS_COMMISSION_RATE = 10; // Default 10% platform commission
 
@@ -200,17 +200,13 @@ const handlePaymentSuccess = async (checkoutSessionId: string, paymentIntentId: 
                await session.endSession();
           }
 
-          // Send real-time in-app notification to the merchant borrower
-          sendNotifications({
-               title: 'New B2B Payment Split',
-               message: `You received a payout of £${payoutAmountMajor} from checkout session ${checkoutSessionId}. Platform fee: £${commissionAmountMajor}, loan deduction: £${repaymentAmountMajor}`,
-               receiver: borrower.userId,
-               reference: payment._id,
-               referenceModel: 'Payment',
-               screen: 'PAYMENT_HISTORY',
-               type: 'PAYMENT',
-               read: false,
-          }).catch((err) => console.error('Failed to dispatch in-app notification:', err));
+          // Send real-time in-app notification to the merchant borrower via BullMQ queue
+          NotificationQueueHelper.sendPaymentNotification(
+               borrower.userId.toString(),
+               `You received a payout of ${payoutAmountMajor} from checkout session ${checkoutSessionId}. Platform fee: £${commissionAmountMajor}, loan deduction: £${repaymentAmountMajor}`,
+               payment._id.toString(),
+               'New B2B Payment Split',
+          ).catch((err) => console.error('Failed to queue B2B payment notification:', err));
 
           // Dispatch B2B webhook callback to merchant store asynchronously
           dispatchMerchantWebhook(borrower.userId.toString(), 'payment.succeeded', {
