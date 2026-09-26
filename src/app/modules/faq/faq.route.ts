@@ -13,7 +13,7 @@ router.post(
      FaqController.createFaq,
 );
 
-router.get('/public', auth(...ROLE_GROUPS.ALL), FaqController.getFaqs);
+router.get('/public', FaqController.getFaqs);
 router.get('/', auth(...ROLE_GROUPS.ADMINS), FaqController.getFaqs);
 
 router.delete('/delete/:id', auth(...ROLE_GROUPS.ADMINS), FaqController.deleteFaq);
