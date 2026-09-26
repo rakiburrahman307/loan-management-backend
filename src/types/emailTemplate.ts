@@ -8,10 +8,6 @@ export type IResetPassword = {
      email: string;
      otp: string;
 };
-export interface IResetPasswordByEmail {
-     email: string;
-     resetUrl: string;
-}
 export interface IHelpContact {
      name: string;
      email: string;
