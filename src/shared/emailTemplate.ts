@@ -27,8 +27,8 @@ const createAccount = (values: ICreateAccount) => {
             <td align="center" style="padding:35px 25px 20px;">
 
               <img
-                src="https://i.postimg.cc/6pgNvKhD/logo.png"
-                alt="YourBrand Logo"
+                src="https://res.cloudinary.com/dn83fu2pc/image/upload/v1790414828/loan_azwegq.png"
+                alt="Finlara Logo"
                 width="150"
                 style="display:block; width:150px; max-width:100%; height:auto; border:0; margin-bottom:15px;"
               />
@@ -142,7 +142,7 @@ const createAccount = (values: ICreateAccount) => {
               </p>
 
               <p style="margin:8px 0 0; font-size:12px; color:#94A3B8;">
-                &copy; ${new Date().getFullYear()} Finlora. All rights reserved.
+                &copy; ${new Date().getFullYear()} Finlara. All rights reserved.
               </p>
 
             </td>
@@ -212,7 +212,7 @@ const resetPassword = (values: IResetPassword) => {
           <tr>
             <td align="center" style="padding:35px 25px 25px;">
               <img
-                src="https://i.postimg.cc/6pgNvKhD/logo.png"
+                src="https://res.cloudinary.com/dn83fu2pc/image/upload/v1790414828/loan_azwegq.png"
                 alt="Logo"
                 width="150"
                 style="display:block; width:150px; max-width:100%; height:auto; border:0;"
