@@ -20,7 +20,7 @@ import { parseUserAgent } from '../../../utils/userAgentParser';
 const loginUserFromDB = async (payload: ILoginData, ip?: string, userAgent?: string) => {
      const { email, password } = payload;
 
-     const isExistUser = await User.findOne({ email }).select('+password');
+     const isExistUser = await User.findOne({ email }).select('+password +authentication');
      if (!isExistUser) {
           throw new AppError(StatusCodes.BAD_REQUEST, "User doesn't exist!");
      }
@@ -165,7 +165,7 @@ const loginUserFromDB = async (payload: ILoginData, ip?: string, userAgent?: str
 
 //forget password
 const forgetPasswordToDB = async (email: string) => {
-     const isExistUser = await User.isExistUserByEmail(email);
+     const isExistUser = await User.findOne({ email }).select('+authentication');
      if (!isExistUser) {
           throw new AppError(StatusCodes.BAD_REQUEST, "User doesn't exist!");
      }
@@ -175,18 +175,23 @@ const forgetPasswordToDB = async (email: string) => {
      await EmailQueueHelper.sendPasswordResetEmail(isExistUser.email!, otp);
 
      //save to DB
-     const authentication = {
-          purpose: 'resetPassword',
-          isResetPassword: true,
-          oneTimeCode: otpEncode(otp, email),
-          expireAt: new Date(Date.now() + config.otp.expire_time),
-     };
-     await User.findOneAndUpdate({ email }, { $set: { authentication } });
+     await User.findOneAndUpdate(
+          { email },
+          {
+               $set: {
+                    'authentication.purpose': 'resetPassword',
+                    'authentication.isResetPassword': true,
+                    'authentication.oneTimeCode': otpEncode(otp, email),
+                    'authentication.expireAt': new Date(Date.now() + config.otp.expire_time),
+                    'authentication.otpRequestedAt': new Date(),
+               },
+          },
+     );
 };
 // resend otp
 const resendOtpFromDb = async (email: string) => {
      // Check if the user exists
-     const isExistUser = await User.isExistUserByEmail(email);
+     const isExistUser = await User.findOne({ email }).select('+authentication');
      if (!isExistUser || !isExistUser._id) {
           throw new AppError(StatusCodes.BAD_REQUEST, "User doesn't exist!");
      }
@@ -195,27 +200,38 @@ const resendOtpFromDb = async (email: string) => {
      const otp = generateOTP(config.otp.length);
      const otpCoolDown = config.otp.expire_time;
 
-     if (isExistUser.authentication.otpRequestedAt) {
+     if (isExistUser?.authentication?.otpRequestedAt) {
           const lastRequested = new Date(isExistUser.authentication.otpRequestedAt).getTime();
           const currentTime = new Date().getTime();
 
           if (currentTime - lastRequested < otpCoolDown) {
-               const remainingTime = ((lastRequested + otpCoolDown - currentTime) / 1000).toFixed(
-                    0,
+               const remainingTime = Math.ceil(
+                    (lastRequested + otpCoolDown - currentTime) / 1000,
                );
-               throw new Error(
+               throw new AppError(
+                    StatusCodes.TOO_MANY_REQUESTS,
                     `Please wait ${remainingTime} seconds before requesting another OTP.`,
                );
           }
      }
-     await EmailQueueHelper.sendWelcomeEmail(isExistUser.email!, isExistUser.name, otp);
+
+     if (isExistUser?.authentication?.purpose === 'resetPassword') {
+          await EmailQueueHelper.sendPasswordResetEmail(isExistUser.email!, otp);
+     } else {
+          await EmailQueueHelper.sendWelcomeEmail(isExistUser.email!, isExistUser.name, otp);
+     }
 
      //save to DB
-     const authentication = {
-          oneTimeCode: otpEncode(otp, email),
-          expireAt: new Date(Date.now() + config.otp.expire_time),
-     };
-     await User.findOneAndUpdate({ _id: isExistUser._id }, { $set: { authentication } });
+     await User.findOneAndUpdate(
+          { _id: isExistUser._id },
+          {
+               $set: {
+                    'authentication.oneTimeCode': otpEncode(otp, email),
+                    'authentication.expireAt': new Date(Date.now() + config.otp.expire_time),
+                    'authentication.otpRequestedAt': new Date(),
+               },
+          },
+     );
 };
 
 //verify email
