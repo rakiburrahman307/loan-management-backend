@@ -38,14 +38,6 @@ export const emailWorker = new Worker<EmailJobData>(
                               otp: data?.otp,
                          });
                          break;
-
-                    case 'resetPasswordByUrl':
-                         emailData = emailTemplate.resetPasswordByUrl({
-                              email: to,
-                              resetUrl: data?.resetUrl,
-                         });
-                         break;
-
                     case 'contact':
                          emailData = emailTemplate.contact({
                               email: to,
