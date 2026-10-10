@@ -13,9 +13,7 @@ import handleStripeWebhook from './helpers/stripe/handleStripeWebhook';
 import { corsOptions, generalLimiter } from './DB/security';
 
 const app: Application = express();
-if (config.node_env === 'production') {
-     app.set('trust proxy', 1);
-}
+app.set('trust proxy', 1);
 
 // ==========================================
 // WEBHOOK (Before body parser)
