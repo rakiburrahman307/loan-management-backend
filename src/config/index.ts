@@ -27,12 +27,6 @@ export default {
           expire_time: Number(process.env.OTP_EXPIRE_TIME) * 60000 || 3 * 60000,
           secret: process.env.OTP_SECRET || 'otp_secret',
      },
-     iap: {
-          google_play_email: process.env.GOOGLE_PLAY_EMAIL || '',
-          google_play_private_key: process.env.GOOGLE_PLAY_PRIVATE_KEY || '',
-          android_package_name: process.env.ANDROID_PACKAGE_NAME || '', // com.yoga.users
-          apple_shared_secret: process.env.APPLE_SHARED_SECRET || '',
-     },
      email: {
           email_header: process.env.EMAIL_HEADER_NAME,
           from: process.env.EMAIL_FROM,
