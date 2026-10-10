@@ -138,12 +138,6 @@ const deleteUser = async (id: string) => {
           email: newEmail,
      };
 
-     if (isExistUser.googleId) {
-          updateData.googleId = `${isExistUser.googleId}${suffix}`;
-     }
-     if (isExistUser.facebookId) {
-          updateData.facebookId = `${isExistUser.facebookId}${suffix}`;
-     }
 
      await User.findByIdAndUpdate(id, {
           $set: updateData,

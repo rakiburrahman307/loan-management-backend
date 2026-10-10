@@ -12,9 +12,6 @@ export type IUser = {
      stripeCustomerId: string;
      status: 'active' | 'blocked';
      isVerified: boolean;
-     googleId?: string;
-     facebookId?: string;
-     oauthProvider?: 'google' | 'facebook';
      authentication?: {
           purpose: 'signup' | 'resetPassword';
           attempts: number;

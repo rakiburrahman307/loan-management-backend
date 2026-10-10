@@ -8,8 +8,6 @@ import ExpressMongoSanitize from 'express-mongo-sanitize';
 import { excludeFields } from '../app/builder/QueryBuilder';
 import config from '../config';
 import cors from 'cors';
-import session from 'express-session';
-import MongoStore from 'connect-mongo';
 import { logger } from '../shared/logger';
 
 // ==========================================
@@ -315,45 +313,4 @@ export const corsOptions: cors.CorsOptions = {
      maxAge: 86400, // 24 hours
      preflightContinue: false,
      optionsSuccessStatus: 204,
-};
-
-// ==========================================
-// SESSION CONFIGURATION
-// ==========================================
-export const getSessionConfig = (): session.SessionOptions => {
-     const sessionConfig: session.SessionOptions = {
-          secret: config.express_session as string,
-          resave: false,
-          saveUninitialized: false,
-          name: 'sid', // Custom session ID name (security through obscurity)
-          proxy: config.node_env === 'production', // Trust proxy in production
-          cookie: {
-               secure: config.node_env === 'production', // HTTPS only in production
-               httpOnly: true, // Prevent XSS attacks
-               maxAge: 24 * 60 * 60 * 1000, // 24 hours
-               sameSite: config.node_env === 'production' ? 'strict' : 'lax', // CSRF protection
-               // domain: config.node_env === 'production' ? '.yourdomain.com' : undefined,
-          },
-          rolling: true, // Refresh session on each request
-          unset: 'destroy', // Destroy session data when unset
-     };
-
-     // MongoDB session store for production (Persistent sessions)
-     if (config.node_env === 'production' && config.database_url) {
-          sessionConfig.store = MongoStore.create({
-               mongoUrl: config.database_url,
-               collectionName: 'sessions',
-               ttl: 24 * 60 * 60, // 1 day
-               autoRemove: 'native', // Auto-remove expired sessions
-               touchAfter: 24 * 3600, // Update session every 24 hours
-               crypto: {
-                    secret: config.express_session as string,
-               },
-               stringify: false, // Better performance
-          });
-
-          logger.info('✅ MongoDB session store configured');
-     }
-
-     return sessionConfig;
 };

@@ -25,10 +25,7 @@ const userSchema = new Schema<IUser, UserModel>(
           },
           password: {
                type: String,
-               required: function () {
-                    // Password is only required for non-OAuth users
-                    return !this.oauthProvider;
-               },
+               required: true,
                select: false,
                minlength: 8,
           },
@@ -60,19 +57,6 @@ const userSchema = new Schema<IUser, UserModel>(
           stripeCustomerId: {
                type: String,
                default: '',
-          },
-          // OAuth fields
-          googleId: {
-               type: String,
-               sparse: true,
-          },
-          facebookId: {
-               type: String,
-               sparse: true,
-          },
-          oauthProvider: {
-               type: String,
-               enum: ['google', 'facebook'],
           },
           authentication: {
                type: {
@@ -162,10 +146,6 @@ userSchema.pre('save', async function (next) {
           this.password = await bcrypt.hash(this.password, Number(config.bcrypt_salt_rounds));
      }
 
-     // Auto-verify OAuth users
-     if (this.oauthProvider && !this.isVerified) {
-          this.isVerified = true;
-     }
      next();
 });
 // ✅ Online Status Methods

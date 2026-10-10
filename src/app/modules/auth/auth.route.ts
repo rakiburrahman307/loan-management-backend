@@ -40,10 +40,5 @@ router.post(
 );
 router.post('/resend-otp', authLimiter, AuthController.resendOtp);
 router.post('/logout', auth(...ROLE_GROUPS.ALL), AuthController.logoutUser);
-// OAuth Routes
-router.get('/google', AuthController.googleAuth);
-router.get('/google/callback', AuthController.googleAuthCallback);
-router.get('/facebook', AuthController.facebookAuth);
-router.get('/facebook/callback', AuthController.facebookAuthCallback);
 
 export const AuthRouter = router;

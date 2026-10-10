@@ -4,10 +4,6 @@ import sendResponse from '../../../shared/sendResponse';
 import { AuthService } from './auth.service';
 import config from '../../../config';
 import { CookieOptions } from 'express';
-import passport from 'passport';
-import { jwtHelper } from '../../../helpers/jwtHelper';
-import { IUser } from '../user/user.interface';
-import { Types } from 'mongoose';
 
 const verifyEmail = catchAsync(async (req, res) => {
      const { ...verifyData } = req.body;
@@ -124,111 +120,6 @@ const refreshToken = catchAsync(async (req, res) => {
      });
 });
 
-// Google OAuth Routes
-const googleAuth = catchAsync(async (req, res) => {
-     passport.authenticate('google', { scope: ['profile', 'email'] })(req, res);
-});
-
-const googleAuthCallback = catchAsync(async (req, res) => {
-     passport.authenticate(
-          'google',
-          { session: false },
-          async (err: Error | null, user: (IUser & { _id: Types.ObjectId }) | false) => {
-               if (err) {
-                    return res.status(StatusCodes.UNAUTHORIZED).json({
-                         success: false,
-                         message: 'Google authentication failed',
-                         error: err.message,
-                    });
-               }
-
-               if (!user) {
-                    return res.status(StatusCodes.UNAUTHORIZED).json({
-                         success: false,
-                         message: 'User not found',
-                    });
-               }
-
-               // Generate JWT tokens
-               const jwtData = {
-                    id: user._id,
-                    role: user.role,
-                    email: user.email,
-               };
-
-               const accessToken = jwtHelper.createToken(
-                    jwtData,
-                    config.jwt.jwt_secret as string,
-                    config.jwt.jwt_expire_in as string,
-               );
-
-               const refreshToken = jwtHelper.createToken(
-                    jwtData,
-                    config.jwt.jwt_refresh_secret as string,
-                    config.jwt.jwt_refresh_expire_in as string,
-               );
-
-               // Redirect to frontend with tokens
-               const frontendUrl = config.frontend_url || 'http://localhost:3000';
-               const redirectUrl = `${frontendUrl}/auth/callback?accessToken=${accessToken}&refreshToken=${refreshToken}&success=true`;
-
-               res.redirect(redirectUrl);
-          },
-     )(req, res);
-});
-
-// Facebook OAuth Routes
-const facebookAuth = catchAsync(async (req, res) => {
-     passport.authenticate('facebook', { scope: ['email'] })(req, res);
-});
-
-const facebookAuthCallback = catchAsync(async (req, res) => {
-     passport.authenticate(
-          'facebook',
-          { session: false },
-          async (err: Error | null, user: (IUser & { _id: Types.ObjectId }) | false) => {
-               if (err) {
-                    return res.status(StatusCodes.UNAUTHORIZED).json({
-                         success: false,
-                         message: 'Facebook authentication failed',
-                         error: err.message,
-                    });
-               }
-
-               if (!user) {
-                    return res.status(StatusCodes.UNAUTHORIZED).json({
-                         success: false,
-                         message: 'User not found',
-                    });
-               }
-
-               // Generate JWT tokens
-               const jwtData = {
-                    id: user._id,
-                    role: user.role,
-                    email: user.email,
-               };
-
-               const accessToken = jwtHelper.createToken(
-                    jwtData,
-                    config.jwt.jwt_secret as string,
-                    config.jwt.jwt_expire_in as string,
-               );
-
-               const refreshToken = jwtHelper.createToken(
-                    jwtData,
-                    config.jwt.jwt_refresh_secret as string,
-                    config.jwt.jwt_refresh_expire_in as string,
-               );
-
-               // Redirect to frontend with tokens
-               const frontendUrl = config.frontend_url || 'http://localhost:3000';
-               const redirectUrl = `${frontendUrl}/auth/callback?accessToken=${accessToken}&refreshToken=${refreshToken}&success=true`;
-
-               res.redirect(redirectUrl);
-          },
-     )(req, res);
-});
 
 const logoutUser = catchAsync(async (req, res) => {
      const user = req.user;
@@ -260,9 +151,5 @@ export const AuthController = {
      changePassword,
      resendOtp,
      refreshToken,
-     googleAuth,
-     googleAuthCallback,
-     facebookAuth,
-     facebookAuthCallback,
      logoutUser,
 };

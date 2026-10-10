@@ -103,29 +103,6 @@ const restoreUser = async (id: string) => {
           email: originalEmail,
      };
 
-     if (user.googleId) {
-          const originalGoogleId = user.googleId.replace(suffixRegex, '');
-          const googleConflict = await User.findOne({ googleId: originalGoogleId });
-          if (googleConflict) {
-               throw new AppError(
-                    StatusCodes.CONFLICT,
-                    'Cannot restore user. An active user with this Google ID already exists.',
-               );
-          }
-          updateData.googleId = originalGoogleId;
-     }
-
-     if (user.facebookId) {
-          const originalFacebookId = user.facebookId.replace(suffixRegex, '');
-          const facebookConflict = await User.findOne({ facebookId: originalFacebookId });
-          if (facebookConflict) {
-               throw new AppError(
-                    StatusCodes.CONFLICT,
-                    'Cannot restore user. An active user with this Facebook ID already exists.',
-               );
-          }
-          updateData.facebookId = originalFacebookId;
-     }
 
      const restoredUser = await User.findByIdAndUpdate(id, { $set: updateData }, { new: true });
 
@@ -151,12 +128,6 @@ const getDeletedUsersFromDB = async (query: Record<string, unknown>) => {
           const userObj = user.toObject();
           if (userObj.email) {
                userObj.email = userObj.email.replace(suffixRegex, '');
-          }
-          if (userObj.googleId) {
-               userObj.googleId = userObj.googleId.replace(suffixRegex, '');
-          }
-          if (userObj.facebookId) {
-               userObj.facebookId = userObj.facebookId.replace(suffixRegex, '');
           }
           return userObj;
      });

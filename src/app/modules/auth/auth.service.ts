@@ -25,13 +25,6 @@ const loginUserFromDB = async (payload: ILoginData, ip?: string, userAgent?: str
           throw new AppError(StatusCodes.BAD_REQUEST, "User doesn't exist!");
      }
 
-     // Handle OAuth users (they don't have passwords)
-     if (isExistUser.oauthProvider) {
-          throw new AppError(
-               StatusCodes.BAD_REQUEST,
-               `This account was created using ${isExistUser.oauthProvider}. Please use the ${isExistUser.oauthProvider} login option.`,
-          );
-     }
 
      if (!password) {
           throw new AppError(StatusCodes.BAD_REQUEST, 'Password is required!');

@@ -41,14 +41,6 @@ export default {
           host: process.env.EMAIL_HOST,
           pass: process.env.EMAIL_PASS,
      },
-     express_session: process.env.EXPRESS_SESSION_SECRET_KEY,
-     social: {
-          google_client_id: process.env.GOOGLE_CLIENT_ID,
-          facebook_client_id: process.env.FACEBOOK_CLIENT_ID,
-          google_client_secret: process.env.GOOGLE_CLIENT_SECRET,
-          facebook_client_secret: process.env.FACEBOOK_CLIENT_SECRET,
-          callback_url: process.env.GOOGLE_CALLBACK_URL,
-     },
      redis: {
           password: process.env.REDIS_PASSWORD,
           url: process.env.REDIS_URL,

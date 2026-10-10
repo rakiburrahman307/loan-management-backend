@@ -8,6 +8,11 @@ let isRedisConnected = false;
 
 export const BULLMQ_PREFIX = config.server.name || process.env.SERVER_NAME || 'default-app';
 
+/*
+// ============================================================================
+// PREVIOUS LOCAL DYNAMIC DB IMPLEMENTATION (DISABLED FOR CLOUD / UPSTASH REDIS)
+// (Upstash only supports DB 0. Uncomment this block if reverting to local Docker Redis)
+// ============================================================================
 export const getDynamicRedisDb = (): number => {
      const configuredDb = Number(config.redis.db);
      if (!isNaN(configuredDb) && configuredDb > 0) {
@@ -22,13 +27,41 @@ export const getDynamicRedisDb = (): number => {
 };
 
 export const selectedDb = getDynamicRedisDb();
+*/
+
+// ============================================================================
+// NEW: CLOUD / UPSTASH REDIS COMPATIBILITY (Fixed to DB 0)
+// ============================================================================
+export const getDynamicRedisDb = (): number => {
+     // Cloud providers like Upstash only support DB 0
+     return 0;
+};
+
+export const selectedDb = 0;
+
+// TLS Detection for Cloud Redis (rediss://)
+const redisUrl = config.redis.url || 'redis://localhost:6379';
+const isSecure = redisUrl.startsWith('rediss://');
 
 // ==========================================
 // 1. MAIN REDIS CONFIG (For Caching & General Use)
 // ==========================================
+/*
+// PREVIOUS CONFIG WITHOUT TLS:
 const REDIS_CONFIG: RedisClientOptions = {
      url: config.redis.url || 'redis://localhost:6379',
      socket: {
+          connectTimeout: 10000,
+          reconnectStrategy: (retries: number) => { ... },
+     },
+     database: selectedDb,
+};
+*/
+
+const REDIS_CONFIG: RedisClientOptions = {
+     url: redisUrl,
+     socket: {
+          tls: isSecure, // Automatically enables TLS if rediss:// is used
           connectTimeout: 10000,
           reconnectStrategy: (retries: number) => {
                if (retries > 10) {

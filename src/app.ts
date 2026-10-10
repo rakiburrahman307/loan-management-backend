@@ -1,6 +1,5 @@
 import cors from 'cors';
 import express, { Application, Request, Response } from 'express';
-import session from 'express-session';
 import router from './routes';
 import { Morgan } from './shared/morgen';
 import globalErrorHandler from './globalErrorHandler/globalErrorHandler';
@@ -8,11 +7,10 @@ import { notFound } from './app/middleware/notFound';
 import { welcome } from './utils/welcome';
 import config from './config';
 import path from 'path';
-import passport from './config/passport';
 import setupTimeManagement from './utils/cronJobs';
 import getUploadDirectory from './utils/getUploadDirectory';
 import handleStripeWebhook from './helpers/stripe/handleStripeWebhook';
-import { corsOptions, generalLimiter, getSessionConfig } from './DB/security';
+import { corsOptions, generalLimiter } from './DB/security';
 
 const app: Application = express();
 if (config.node_env === 'production') {
@@ -52,16 +50,6 @@ app.use(cors(corsOptions));
 app.use(express.json({ limit: '10mb' })); // Limit request body size
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
-// ==========================================
-// SESSION (OAuth)
-// ==========================================
-app.use(session(getSessionConfig()));
-
-// ==========================================
-// PASSPORT INITIALIZATION
-// ==========================================
-app.use(passport.initialize());
-app.use(passport.session());
 
 // ==========================================
 // STATIC FILES (Uploads)
