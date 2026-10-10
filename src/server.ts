@@ -1,12 +1,12 @@
 import { createServer, Server as HttpServer } from 'http';
 import { Server as SocketServer } from 'socket.io';
+import fs from 'fs';
 import colors from 'colors';
 import { validateConfig } from './DB/configValidation';
 import { connectToDatabase } from './DB/db';
 import app from './app';
 import config from './config';
 import { logger } from './shared/logger';
-// import { socketHelper } from './helpers/socketHelper'; // ❌ এটা আর লাগবে না
 import { setupProcessHandlers } from './DB/processHandlers';
 import { setupSecurity } from './DB/security';
 import { setupQueueEvents, setupWorkerEvents } from './DB/bullMQ';
@@ -27,8 +27,9 @@ async function startServer(): Promise<void> {
 
           // Create HTTP server
           httpServer = createServer(app);
-          const httpPort = Number(config.port);
-          const ipAddress = config.ip_address as string;
+          const socketPath = config.socket_path;
+          const httpPort = Number(config.port) || 5004;
+          const ipAddress = config.ip_address as string || '0.0.0.0';
 
           // Set timeouts
           httpServer.timeout = 120000;
@@ -38,7 +39,6 @@ async function startServer(): Promise<void> {
           // ==========================================
           // ✅ SOCKET.IO SETUP (With Redis Adapter)
           // ==========================================
-          // আমরা এখানে সরাসরি initSocket কল করছি যা Adapter সহ IO রিটার্ন করবে
           socketServer = await initSocket(httpServer);
 
           logger.info(
@@ -49,14 +49,34 @@ async function startServer(): Promise<void> {
 
           // Start HTTP server
           await new Promise<void>((resolve, reject) => {
-               httpServer.listen(httpPort, ipAddress, () => {
-                    logger.info(
-                         colors.bgCyan.bold.white(
-                              `♻️  Server (PID: ${process.pid}) listening on http://${ipAddress}:${httpPort}`,
-                         ),
-                    );
-                    resolve();
-               });
+               if (socketPath) {
+                    // পুরানো সকেট ফাইল থেকে থাকলে রিমুভ করা
+                    if (fs.existsSync(socketPath)) {
+                         fs.unlinkSync(socketPath);
+                    }
+
+                    // UNIX সকেট ফাইলে লিসেন করা
+                    httpServer.listen(socketPath, () => {
+                         // Apache রিভার্স প্রক্সি যাতে রিড/রাইট করতে পারে
+                         fs.chmodSync(socketPath, '0777');
+                         logger.info(
+                              colors.bgCyan.bold.white(
+                                   `♻️  Server (PID: ${process.pid}) listening on UNIX Socket: ${socketPath}`,
+                              ),
+                         );
+                         resolve();
+                    });
+               } else {
+                    // রেগুলার TCP পোর্টে লিসেন করা (Local development-এর জন্য)
+                    httpServer.listen(httpPort, ipAddress, () => {
+                         logger.info(
+                              colors.bgCyan.bold.white(
+                                   `♻️  Server (PID: ${process.pid}) listening on http://${ipAddress}:${httpPort}`,
+                              ),
+                         );
+                         resolve();
+                    });
+               }
                httpServer.on('error', reject);
           });
      } catch (error) {

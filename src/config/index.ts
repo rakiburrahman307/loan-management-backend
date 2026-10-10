@@ -13,6 +13,7 @@ export default {
      bcrypt_salt_rounds: process.env.BCRYPT_SALT_ROUNDS,
      allowed_origins: process.env.ALLOWED_ORIGINS,
      upload_path: process.env.UPLOAD_PATH,
+     socket_path: process.env.SOCKET_PATH,
      jwt: {
           jwt_secret: process.env.JWT_SECRET,
           jwt_expire_in: process.env.JWT_EXPIRE_IN,
